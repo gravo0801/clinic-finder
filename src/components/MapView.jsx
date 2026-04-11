@@ -40,7 +40,7 @@ function loadNaverScript(clientId) {
     }
     // 새로 스크립트 삽입
     const script = document.createElement('script')
-    script.src = `https://maps.apigw.ntruss.com/map-js/v2/maps.js?ncpKeyId=${clientId}`
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`
     script.async = true
     script.onload = resolve
     script.onerror = reject
