@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 본인만 접근 (로그인 없이 쓰는 개인용 앱이므로 일단 전체 허용)
+    // 실서비스 시 인증 추가 권장
+    match /spots/{spotId} {
+      allow read, write: if true;
+    }
+  }
+}
