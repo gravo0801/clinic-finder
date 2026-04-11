@@ -40,7 +40,7 @@ function loadNaverScript(clientId) {
     }
     // 새로 스크립트 삽입
     const script = document.createElement('script')
-    script.src = `https://maps.apigw.ntruss.com/map-js/v2/maps.js?ncpKeyId=${clientId}`
+    script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${clientId}`
     script.async = true
     script.onload = resolve
     script.onerror = reject
@@ -64,7 +64,7 @@ export default function MapView({
 
   // 스크립트 동적 로드 후 지도 초기화
   useEffect(() => {
-    const clientId = import.meta.env.VITE_NAVER_CLIENT_ID
+    const clientId = 'psc3xcgzk6'
     loadNaverScript(clientId)
       .then(() => {
         if (mapInstanceRef.current) return
