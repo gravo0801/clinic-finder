@@ -5,15 +5,17 @@ import SpotPanel from './components/SpotPanel'
 import NearbyPanel from './components/NearbyPanel'
 import AIAnalysisPanel from './components/AIAnalysisPanel'
 import ChecklistPanel from './components/ChecklistPanel'
+import SearchBar from './components/SearchBar'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
   const [selectedSpot, setSelectedSpot] = useState(null)
-  const [panelMode, setPanelMode] = useState(null) // 'new'|'edit'|'nearby'|'ai'|'checklist'|null
+  const [panelMode, setPanelMode] = useState(null)
   const [newCoords, setNewCoords] = useState(null)
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
+  const [searchPlace, setSearchPlace] = useState(null)
 
   useEffect(() => { return subscribeSpots(setSpots) }, [])
 
@@ -46,6 +48,11 @@ export default function App() {
     setSelectedSpot(spot)
     setPanelMode('checklist')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
+  }
+
+  const handleSearchSelect = (place) => {
+    setCenterOn({ lat: place.lat, lng: place.lng })
+    setSearchPlace(place)
   }
 
   const handleSaveNew = async (data) => {
@@ -95,11 +102,17 @@ export default function App() {
       </aside>
 
       <main className="map-area">
+        {/* 검색바 - 지도 위에 오버레이 */}
+        <div className="map-searchbar">
+          <SearchBar onSelectPlace={handleSearchSelect} />
+        </div>
+
         <MapView
           spots={spots}
           centerOn={centerOn}
           selectedSpot={selectedSpot}
           newSpotCoords={newCoords}
+          searchPlace={searchPlace}
           onMapClick={handleMapClick}
           onSpotClick={handleSpotSelect}
         />
@@ -126,26 +139,15 @@ export default function App() {
       )}
 
       {panelMode === 'nearby' && selectedSpot && (
-        <NearbyPanel
-          spot={selectedSpot}
-          onClose={handleClose}
-          onClinicsLoaded={setNearbyClinics}
-        />
+        <NearbyPanel spot={selectedSpot} onClose={handleClose} onClinicsLoaded={setNearbyClinics} />
       )}
 
       {panelMode === 'ai' && selectedSpot && (
-        <AIAnalysisPanel
-          spot={selectedSpot}
-          nearbyClinics={nearbyClinics}
-          onClose={handleClose}
-        />
+        <AIAnalysisPanel spot={selectedSpot} nearbyClinics={nearbyClinics} onClose={handleClose} />
       )}
 
       {panelMode === 'checklist' && selectedSpot && (
-        <ChecklistPanel
-          spot={selectedSpot}
-          onClose={handleClose}
-        />
+        <ChecklistPanel spot={selectedSpot} onClose={handleClose} />
       )}
     </div>
   )
