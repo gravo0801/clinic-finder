@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import MapView from './components/MapView'
 import SpotList from './components/SpotList'
 import SpotPanel from './components/SpotPanel'
+import NearbyPanel from './components/NearbyPanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
   const [selectedSpot, setSelectedSpot] = useState(null)
-  const [panelMode, setPanelMode] = useState(null) // 'new' | 'edit' | null
+  const [panelMode, setPanelMode] = useState(null)
   const [newCoords, setNewCoords] = useState(null)
   const [centerOn, setCenterOn] = useState(null)
 
@@ -24,6 +25,12 @@ export default function App() {
   const handleSpotSelect = (spot) => {
     setSelectedSpot(spot)
     setPanelMode('edit')
+    setCenterOn({ lat: spot.lat, lng: spot.lng })
+  }
+
+  const handleNearbyOpen = (spot) => {
+    setSelectedSpot(spot)
+    setPanelMode('nearby')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
   }
 
@@ -53,7 +60,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="logo">
@@ -68,10 +74,10 @@ export default function App() {
           spots={spots}
           selectedId={selectedSpot?.id}
           onSelect={handleSpotSelect}
+          onNearby={handleNearbyOpen}
         />
       </aside>
 
-      {/* Map */}
       <main className="map-area">
         <MapView
           spots={spots}
@@ -81,8 +87,6 @@ export default function App() {
           onMapClick={handleMapClick}
           onSpotClick={handleSpotSelect}
         />
-
-        {/* Map hint */}
         {spots.length === 0 && (
           <div className="map-hint">
             <span>📍 지도를 클릭해 첫 후보지를 추가하세요</span>
@@ -90,8 +94,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Side panel */}
-      {panelMode && (
+      {(panelMode === 'new' || panelMode === 'edit') && (
         <SpotPanel
           mode={panelMode}
           spot={selectedSpot}
@@ -99,6 +102,14 @@ export default function App() {
           onSave={handleSaveNew}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
+          onClose={handleClose}
+          onNearby={() => selectedSpot && handleNearbyOpen(selectedSpot)}
+        />
+      )}
+
+      {panelMode === 'nearby' && selectedSpot && (
+        <NearbyPanel
+          spot={selectedSpot}
           onClose={handleClose}
         />
       )}
