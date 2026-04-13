@@ -7,40 +7,49 @@ const STRONG_COMPETITOR_NAME = [
   '건강검진', '내과의원', '내과클리닉',
 ]
 
+// 이름에 이것이 있으면 무조건 비경쟁 (강제 제외)
+const NON_COMPETITOR_NAME = [
+  '미용', '여성', '성형', '피부', '이비인후', '정형',
+  '정신', '안과', '치과', '한의원', '한방',
+  '산부인과', '비뇨', '재활', '신경외과',
+]
+
 // 진료과에 이것이 있으면 경쟁
 const COMPETITOR_DEPT = [
   '가정의학과', '내과', '일반의', '검진',
 ]
 
-// 전문과만 있는 의원 = 비경쟁 (이 과목들로만 이루어진 경우)
+// 진료과가 이것으로만 구성되면 비경쟁
 const SPECIALIST_ONLY_DEPT = [
   '안과', '정형외과', '성형외과', '피부과', '산부인과',
   '이비인후과', '비뇨의학과', '신경외과', '신경과',
   '정신건강의학과', '재활의학과', '흉부외과', '영상의학과',
   '마취통증의학과', '치과', '한의원', '한방',
-  '소아청소년과', '산부인과', '구강악안면외과',
+  '소아청소년과', '구강악안면외과',
 ]
 
 function isCompetitor(dept = '', name = '') {
+  // 0단계: 이름에 비경쟁 키워드 있으면 무조건 제외
+  if (NON_COMPETITOR_NAME.some((k) => name.includes(k))) return false
+
   // 1단계: 이름에 강력한 경쟁 키워드 있으면 무조건 경쟁
   if (STRONG_COMPETITOR_NAME.some((k) => name.includes(k))) return true
 
   // 2단계: 진료과에 경쟁 과목 포함되면 경쟁
   if (COMPETITOR_DEPT.some((k) => dept.includes(k))) return true
 
-  // 3단계: 진료과 정보가 없는 일반 의원 → 잠재 경쟁
+  // 3단계: 진료과 정보 없는 일반 의원 → 잠재 경쟁
   if (!dept.trim()) {
     if (name.includes('의원') || name.includes('클리닉')) return true
   }
 
-  // 4단계: 진료과가 전문과로만 구성된 경우만 비경쟁
+  // 4단계: 진료과가 전문과로만 구성된 경우 비경쟁
   const deptList = dept.split(',').map((d) => d.trim()).filter(Boolean)
   if (deptList.length > 0) {
     const allSpecialist = deptList.every((d) =>
       SPECIALIST_ONLY_DEPT.some((s) => d.includes(s))
     )
     if (allSpecialist) return false
-    // 전문과 아닌 과목이 있으면 경쟁 가능성
     return true
   }
 
@@ -66,7 +75,6 @@ export default async function handler(req, res) {
 
     const response = await fetch(url)
     const data = await response.json()
-
     const items = data?.response?.body?.items?.item
     if (!items) return res.status(200).json({ items: [], total: 0 })
 
