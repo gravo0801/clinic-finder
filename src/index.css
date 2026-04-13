@@ -1629,3 +1629,27 @@ body {
 .view-sub-btn.ai:hover { background: #FF9500; color: white; }
 .view-sub-btn.checklist { background: rgba(52,199,89,0.08); border-color: rgba(52,199,89,0.3); color: #34C759; }
 .view-sub-btn.checklist:hover { background: #34C759; color: white; }
+
+/* ── 조회 패널 너비 확대 ── */
+.view-panel {
+  width: 460px !important;
+}
+
+/* ── 메모 크게 보기 ── */
+.view-section-memo {
+  flex: 1;
+}
+.view-memo-large {
+  background: #fafbfc;
+  border: 1px solid #f0f2f5;
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #333;
+  white-space: pre-wrap;
+  min-height: 180px;
+  max-height: 380px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
