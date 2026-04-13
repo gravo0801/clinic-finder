@@ -34,7 +34,7 @@ function DistanceBadge({ distance }) {
   )
 }
 
-export default function NearbyPanel({ spot, onClose }) {
+export default function NearbyPanel({ spot, onClose, onClinicsLoaded }) {
   const [radius, setRadius] = useState(1000)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -56,6 +56,7 @@ export default function NearbyPanel({ spot, onClose }) {
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setItems(data.items || [])
+      if (onClinicsLoaded) onClinicsLoaded(data.items || [])
     } catch (e) {
       setError(e.message)
     } finally {
