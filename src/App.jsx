@@ -15,7 +15,7 @@ export default function App() {
   const [newCoords, setNewCoords] = useState(null)
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
-  const [searchPlace, setSearchPlace] = useState(null)
+  const [markedClinics, setMarkedClinics] = useState([])
 
   useEffect(() => { return subscribeSpots(setSpots) }, [])
 
@@ -35,6 +35,7 @@ export default function App() {
     setSelectedSpot(spot)
     setPanelMode('nearby')
     setNearbyClinics([])
+    setMarkedClinics([])
     setCenterOn({ lat: spot.lat, lng: spot.lng })
   }
 
@@ -48,11 +49,6 @@ export default function App() {
     setSelectedSpot(spot)
     setPanelMode('checklist')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
-  }
-
-  const handleSearchSelect = (place) => {
-    setCenterOn({ lat: place.lat, lng: place.lng })
-    setSearchPlace(place)
   }
 
   const handleSaveNew = async (data) => {
@@ -77,6 +73,11 @@ export default function App() {
     setPanelMode(null)
     setSelectedSpot(null)
     setNewCoords(null)
+    setMarkedClinics([])
+  }
+
+  const handleSearchSelect = (place) => {
+    setCenterOn({ lat: place.lat, lng: place.lng })
   }
 
   return (
@@ -102,17 +103,15 @@ export default function App() {
       </aside>
 
       <main className="map-area">
-        {/* 검색바 - 지도 위에 오버레이 */}
         <div className="map-searchbar">
           <SearchBar onSelectPlace={handleSearchSelect} />
         </div>
-
         <MapView
           spots={spots}
           centerOn={centerOn}
           selectedSpot={selectedSpot}
           newSpotCoords={newCoords}
-          searchPlace={searchPlace}
+          markedClinics={markedClinics}
           onMapClick={handleMapClick}
           onSpotClick={handleSpotSelect}
         />
@@ -139,7 +138,12 @@ export default function App() {
       )}
 
       {panelMode === 'nearby' && selectedSpot && (
-        <NearbyPanel spot={selectedSpot} onClose={handleClose} onClinicsLoaded={setNearbyClinics} />
+        <NearbyPanel
+          spot={selectedSpot}
+          onClose={handleClose}
+          onClinicsLoaded={setNearbyClinics}
+          onMarkedClinicsChange={setMarkedClinics}
+        />
       )}
 
       {panelMode === 'ai' && selectedSpot && (
