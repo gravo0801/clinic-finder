@@ -1767,3 +1767,21 @@ body {
   border-color: #5856D6 !important;
   background: #f8f8ff !important;
 }
+
+/* ── 저장된 핀 안내 ── */
+.saved-pins-notice {
+  padding: 8px 16px;
+  background: #f0f0ff;
+  border-bottom: 1px solid #d8d8f0;
+  font-size: 11px;
+  color: #5856D6;
+  font-weight: 600;
+}
+.pinned-badge {
+  background: #5856D6;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
