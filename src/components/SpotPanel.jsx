@@ -5,7 +5,6 @@ const PRESET_TAGS = [
   '신축아파트', '구도심', '유동인구多', '주차양호',
   '경쟁심함', '대형병원인근', '버스환승', '입지우수',
 ]
-
 const RATING_LABEL = ['', '검토필요', '보통', '양호', '우수', '최우수']
 const RATING_COLOR = ['', '#007AFF', '#34C759', '#FFCC00', '#FF9500', '#FF3B30']
 
@@ -16,7 +15,7 @@ function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onClose }) {
   const checkTotal = spot.checklist?.length || 0
 
   return (
-    <div className="spot-panel">
+    <div className="spot-panel view-panel">
       <div className="panel-header">
         <div>
           <h2 className="panel-title">📍 후보지 정보</h2>
@@ -53,11 +52,11 @@ function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onClose }) {
           </div>
         )}
 
-        {/* 메모 */}
+        {/* 메모 - 크게 */}
         {spot.memo && (
-          <div className="view-section">
+          <div className="view-section view-section-memo">
             <div className="view-section-title">메모</div>
-            <div className="view-memo">{spot.memo}</div>
+            <div className="view-memo-large">{spot.memo}</div>
           </div>
         )}
 
@@ -67,8 +66,7 @@ function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onClose }) {
             <div className="view-section-title">임장 체크리스트</div>
             <div className="view-checklist-progress">
               <div className="view-check-bar-wrap">
-                <div
-                  className="view-check-bar-fill"
+                <div className="view-check-bar-fill"
                   style={{
                     width: `${Math.round((checkDone / checkTotal) * 100)}%`,
                     background: checkDone === checkTotal ? '#34C759' : '#5856D6'
@@ -132,8 +130,8 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
 
   const handleSubmit = async () => {
     setSaving(true)
-    const data = { name, address, rating, tags, memo }
     try {
+      const data = { name, address, rating, tags, memo }
       if (mode === 'new') await onSave(data)
       else await onUpdate(spot.id, data)
     } finally {
@@ -200,7 +198,7 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
         </div>
         <div className="field">
           <label className="field-label">메모</label>
-          <textarea className="textarea" rows={5} value={memo}
+          <textarea className="textarea" rows={8} value={memo}
             onChange={(e) => setMemo(e.target.value)}
             placeholder="임장 전 인상, 주변 환경, 경쟁 의원, 고려사항 등 자유롭게 기록하세요" />
         </div>
