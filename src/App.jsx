@@ -3,14 +3,16 @@ import MapView from './components/MapView'
 import SpotList from './components/SpotList'
 import SpotPanel from './components/SpotPanel'
 import NearbyPanel from './components/NearbyPanel'
+import AIAnalysisPanel from './components/AIAnalysisPanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
   const [selectedSpot, setSelectedSpot] = useState(null)
-  const [panelMode, setPanelMode] = useState(null)
+  const [panelMode, setPanelMode] = useState(null) // 'new'|'edit'|'nearby'|'ai'|null
   const [newCoords, setNewCoords] = useState(null)
   const [centerOn, setCenterOn] = useState(null)
+  const [nearbyClinics, setNearbyClinics] = useState([])
 
   useEffect(() => {
     return subscribeSpots(setSpots)
@@ -31,6 +33,13 @@ export default function App() {
   const handleNearbyOpen = (spot) => {
     setSelectedSpot(spot)
     setPanelMode('nearby')
+    setNearbyClinics([])
+    setCenterOn({ lat: spot.lat, lng: spot.lng })
+  }
+
+  const handleAIOpen = (spot) => {
+    setSelectedSpot(spot)
+    setPanelMode('ai')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
   }
 
@@ -75,6 +84,7 @@ export default function App() {
           selectedId={selectedSpot?.id}
           onSelect={handleSpotSelect}
           onNearby={handleNearbyOpen}
+          onAI={handleAIOpen}
         />
       </aside>
 
@@ -104,12 +114,22 @@ export default function App() {
           onDelete={handleDelete}
           onClose={handleClose}
           onNearby={() => selectedSpot && handleNearbyOpen(selectedSpot)}
+          onAI={() => selectedSpot && handleAIOpen(selectedSpot)}
         />
       )}
 
       {panelMode === 'nearby' && selectedSpot && (
         <NearbyPanel
           spot={selectedSpot}
+          onClose={handleClose}
+          onClinicsLoaded={setNearbyClinics}
+        />
+      )}
+
+      {panelMode === 'ai' && selectedSpot && (
+        <AIAnalysisPanel
+          spot={selectedSpot}
+          nearbyClinics={nearbyClinics}
           onClose={handleClose}
         />
       )}
