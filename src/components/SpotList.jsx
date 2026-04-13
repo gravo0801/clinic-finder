@@ -13,7 +13,7 @@ function Stars({ n }) {
   )
 }
 
-export default function SpotList({ spots, selectedId, onSelect, onNearby, onAI }) {
+export default function SpotList({ spots, selectedId, onSelect, onNearby, onAI, onChecklist }) {
   if (spots.length === 0) {
     return (
       <div className="empty-state">
@@ -29,51 +29,57 @@ export default function SpotList({ spots, selectedId, onSelect, onNearby, onAI }
   return (
     <div className="spot-list">
       <div className="spot-count">{spots.length}개 후보지</div>
-      {sorted.map((spot) => (
-        <div
-          key={spot.id}
-          className={`spot-card ${selectedId === spot.id ? 'selected' : ''}`}
-          onClick={() => onSelect(spot)}
-        >
-          <div className="spot-card-top">
-            <span className="rating-dot" style={{ background: RATING_COLORS[spot.rating || 0] }} />
-            <span className="spot-name">{spot.name || '이름 없음'}</span>
-          </div>
-          <div className="spot-meta">
-            <Stars n={spot.rating || 0} />
-            <span className="rating-text">{RATING_LABEL[spot.rating || 0]}</span>
-          </div>
-          {spot.tags?.length > 0 && (
-            <div className="spot-tags">
-              {spot.tags.slice(0, 3).map((t) => (
-                <span key={t} className="tag-chip">{t}</span>
-              ))}
-              {spot.tags.length > 3 && (
-                <span className="tag-chip muted">+{spot.tags.length - 3}</span>
+      {sorted.map((spot) => {
+        const checkDone = spot.checklist?.filter((c) => c.done).length || 0
+        const checkTotal = spot.checklist?.length || 0
+        return (
+          <div
+            key={spot.id}
+            className={`spot-card ${selectedId === spot.id ? 'selected' : ''}`}
+            onClick={() => onSelect(spot)}
+          >
+            <div className="spot-card-top">
+              <span className="rating-dot" style={{ background: RATING_COLORS[spot.rating || 0] }} />
+              <span className="spot-name">{spot.name || '이름 없음'}</span>
+            </div>
+            <div className="spot-meta">
+              <Stars n={spot.rating || 0} />
+              <span className="rating-text">{RATING_LABEL[spot.rating || 0]}</span>
+              {checkTotal > 0 && (
+                <span className="checklist-badge">
+                  📋 {checkDone}/{checkTotal}
+                </span>
               )}
             </div>
-          )}
-          {spot.memo && (
-            <p className="spot-memo-preview">
-              {spot.memo.length > 55 ? spot.memo.slice(0, 55) + '...' : spot.memo}
-            </p>
-          )}
-          <div className="spot-action-btns">
-            <button
-              className="nearby-btn"
-              onClick={(e) => { e.stopPropagation(); onNearby(spot) }}
-            >
-              🏥 주변 의원
-            </button>
-            <button
-              className="ai-btn"
-              onClick={(e) => { e.stopPropagation(); onAI(spot) }}
-            >
-              🤖 AI 분석
-            </button>
+            {spot.tags?.length > 0 && (
+              <div className="spot-tags">
+                {spot.tags.slice(0, 3).map((t) => (
+                  <span key={t} className="tag-chip">{t}</span>
+                ))}
+                {spot.tags.length > 3 && (
+                  <span className="tag-chip muted">+{spot.tags.length - 3}</span>
+                )}
+              </div>
+            )}
+            {spot.memo && (
+              <p className="spot-memo-preview">
+                {spot.memo.length > 55 ? spot.memo.slice(0, 55) + '...' : spot.memo}
+              </p>
+            )}
+            <div className="spot-action-btns">
+              <button className="nearby-btn" onClick={(e) => { e.stopPropagation(); onNearby(spot) }}>
+                🏥 주변
+              </button>
+              <button className="ai-btn" onClick={(e) => { e.stopPropagation(); onAI(spot) }}>
+                🤖 AI
+              </button>
+              <button className="checklist-btn" onClick={(e) => { e.stopPropagation(); onChecklist(spot) }}>
+                📋 임장
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
