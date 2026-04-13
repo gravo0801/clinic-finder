@@ -5,29 +5,54 @@ const RATING_COLORS = {
   2: '#34C759', 1: '#007AFF', 0: '#8E8E93',
 }
 
-function makeMarkerHtml(color, isSelected) {
+function makeSpotMarkerHtml(color, isSelected) {
   const scale = isSelected ? 1.4 : 1
   return `<div style="width:${28*scale}px;height:${28*scale}px;background:${color};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.35);transition:all 0.2s;"></div>`
 }
 
-export default function MapView({ spots, centerOn, selectedSpot, newSpotCoords, onMapClick, onSpotClick }) {
+function makeClinicMarkerHtml(icon, color, name) {
+  return `<div style="position:relative;display:inline-block;">
+    <div class="clinic-marker-pin" style="
+      background:${color};
+      border:2px solid white;
+      border-radius:50%;
+      width:32px;height:32px;
+      display:flex;align-items:center;justify-content:center;
+      font-size:16px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.3);
+      cursor:pointer;
+    ">${icon}</div>
+    <div class="clinic-marker-tooltip" style="
+      position:absolute;
+      bottom:38px;left:50%;transform:translateX(-50%);
+      background:rgba(0,0,0,0.82);color:white;
+      padding:4px 10px;border-radius:6px;
+      font-size:12px;white-space:nowrap;
+      pointer-events:none;
+      display:none;
+    ">${name}</div>
+  </div>
+  <style>
+    .clinic-marker-pin:hover + .clinic-marker-tooltip,
+    .clinic-marker-pin:hover ~ .clinic-marker-tooltip { display:block !important; }
+  </style>`
+}
+
+export default function MapView({
+  spots, centerOn, selectedSpot, newSpotCoords,
+  markedClinics = [],
+  onMapClick, onSpotClick
+}) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef({})
+  const clinicMarkersRef = useRef({})
   const tempMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
-    if (window.naver && window.naver.maps) {
-      initMap()
-      return
-    }
-
-    // 기존 스크립트 전부 제거 (잘못된 파라미터 포함)
-    document.querySelectorAll('script[src*="naver"]').forEach((s) => {
-  if (s.src.includes('ncpClientId')) s.remove()
-})
-
+    if (window.naver && window.naver.maps) { initMap(); return }
+    document.querySelectorAll('script[src*="maps.js"]').forEach((s) => s.remove())
     const script = document.createElement('script')
     script.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=psc3xcgzk6'
     script.async = true
@@ -54,34 +79,26 @@ export default function MapView({ spots, centerOn, selectedSpot, newSpotCoords, 
     }
   }
 
-  // 마커 동기화
+  // 스팟 마커
   useEffect(() => {
     if (!mapReady || !mapInstanceRef.current || !window.naver?.maps) return
-
     const currentIds = new Set(spots.map((s) => s.id))
     Object.keys(markersRef.current).forEach((id) => {
-      if (!currentIds.has(id)) {
-        markersRef.current[id].setMap(null)
-        delete markersRef.current[id]
-      }
+      if (!currentIds.has(id)) { markersRef.current[id].setMap(null); delete markersRef.current[id] }
     })
-
     spots.forEach((spot) => {
       if (!spot.lat || !spot.lng) return
       const color = RATING_COLORS[spot.rating || 0]
       const isSelected = selectedSpot?.id === spot.id
-      const html = makeMarkerHtml(color, isSelected)
-
+      const html = makeSpotMarkerHtml(color, isSelected)
       if (markersRef.current[spot.id]) {
-        markersRef.current[spot.id].setIcon({
-          content: html,
-          anchor: new window.naver.maps.Point(14, 28),
-        })
+        markersRef.current[spot.id].setIcon({ content: html, anchor: new window.naver.maps.Point(14, 28) })
       } else {
         const marker = new window.naver.maps.Marker({
           position: new window.naver.maps.LatLng(spot.lat, spot.lng),
           map: mapInstanceRef.current,
           icon: { content: html, anchor: new window.naver.maps.Point(14, 28) },
+          zIndex: 100,
         })
         window.naver.maps.Event.addListener(marker, 'click', (e) => {
           e.domEvent?.stopPropagation?.()
@@ -91,6 +108,30 @@ export default function MapView({ spots, centerOn, selectedSpot, newSpotCoords, 
       }
     })
   }, [spots, selectedSpot, mapReady])
+
+  // 의원 마커 (마킹된 것만)
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.naver?.maps) return
+
+    // 기존 의원 마커 전부 제거
+    Object.values(clinicMarkersRef.current).forEach((m) => m.setMap(null))
+    clinicMarkersRef.current = {}
+
+    // 새로 그리기
+    markedClinics.forEach((clinic) => {
+      if (!clinic.lat || !clinic.lng) return
+      const { icon, color } = clinic.markerStyle
+      const html = makeClinicMarkerHtml(icon, color, clinic.name)
+      const marker = new window.naver.maps.Marker({
+        position: new window.naver.maps.LatLng(clinic.lat, clinic.lng),
+        map: mapInstanceRef.current,
+        icon: { content: html, anchor: new window.naver.maps.Point(16, 16) },
+        title: clinic.name,
+        zIndex: 50,
+      })
+      clinicMarkersRef.current[clinic.id] = marker
+    })
+  }, [markedClinics, mapReady])
 
   // 임시 마커
   useEffect(() => {
@@ -104,6 +145,7 @@ export default function MapView({ spots, centerOn, selectedSpot, newSpotCoords, 
           content: `<div style="width:36px;height:36px;background:#5856D6;border:3px solid white;border-radius:50%;box-shadow:0 0 0 8px rgba(88,86,214,0.2);"></div>`,
           anchor: new window.naver.maps.Point(18, 18),
         },
+        zIndex: 200,
       })
     }
   }, [newSpotCoords, mapReady])
