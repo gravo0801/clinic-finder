@@ -6,7 +6,7 @@ import NearbyPanel from './components/NearbyPanel'
 import AIAnalysisPanel from './components/AIAnalysisPanel'
 import ChecklistPanel from './components/ChecklistPanel'
 import SearchBar from './components/SearchBar'
-import { subscribeSpots, addSpot, updateSpot, deleteSpot } from './firebase'
+import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
@@ -18,6 +18,13 @@ export default function App() {
   const [markedClinics, setMarkedClinics] = useState([])
 
   useEffect(() => { return subscribeSpots(setSpots) }, [])
+
+  // 선택된 스팟의 저장된 핀 항상 구독 (지도에 표시 유지)
+  useEffect(() => {
+    if (!selectedSpot?.id) { setMarkedClinics([]); return }
+    const unsub = subscribePinnedClinics(selectedSpot.id, setMarkedClinics)
+    return unsub
+  }, [selectedSpot?.id])
 
   const handleMapClick = (lat, lng) => {
     setNewCoords({ lat, lng })
@@ -35,7 +42,6 @@ export default function App() {
     setSelectedSpot(spot)
     setPanelMode('nearby')
     setNearbyClinics([])
-    setMarkedClinics([])
     setCenterOn({ lat: spot.lat, lng: spot.lng })
   }
 
@@ -73,7 +79,6 @@ export default function App() {
     setPanelMode(null)
     setSelectedSpot(null)
     setNewCoords(null)
-    setMarkedClinics([])
   }
 
   const handleSearchSelect = (place) => {
