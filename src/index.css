@@ -1653,3 +1653,117 @@ body {
   overflow-y: auto;
   scrollbar-width: thin;
 }
+
+/* ── 마크 버튼 ── */
+.mark-btn {
+  background: none;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 50%;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+}
+.mark-btn:hover { border-color: #5856D6; transform: scale(1.1); }
+
+/* ── 마크 피커 ── */
+.mark-picker {
+  display: flex;
+  gap: 5px;
+  padding: 8px 10px;
+  background: #f8f9ff;
+  border-radius: 8px;
+  margin: 6px 0 4px;
+  flex-wrap: wrap;
+}
+.mark-pick-btn {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  background: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.14s;
+  display: flex; align-items: center; justify-content: center;
+}
+.mark-pick-btn:hover { transform: scale(1.15); border-color: currentColor; }
+.mark-pick-btn.selected {
+  background: #f0f2ff;
+  border-color: #5856D6;
+  box-shadow: 0 0 0 2px rgba(88,86,214,0.2);
+}
+
+/* ── 의원 마킹 버튼 ── */
+.mark-btn {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid #e5e7eb;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.mark-btn:hover { border-color: #5856D6; background: #f0f0ff; }
+.mark-btn.marked {
+  border-color: #5856D6;
+  background: #f0f0ff;
+  box-shadow: 0 0 0 2px rgba(88,86,214,0.2);
+}
+
+.style-change-btn {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.style-change-btn:hover { border-color: #aaa; }
+
+/* 스타일 피커 */
+.style-picker {
+  position: absolute;
+  right: 0; top: 32px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  padding: 10px;
+  z-index: 999;
+  width: 180px;
+}
+.style-picker-title {
+  font-size: 10px; font-weight: 700;
+  color: #aaa; text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.style-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.style-option {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1.5px solid #f0f0f0;
+  background: white;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.12s;
+}
+.style-option:hover { border-color: #5856D6; background: #f0f0ff; transform: scale(1.15); }
+
+/* 지도 표시된 카드 강조 */
+.clinic-card.map-marked {
+  border-color: #5856D6 !important;
+  background: #f8f8ff !important;
+}
