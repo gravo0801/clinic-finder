@@ -46,9 +46,7 @@ export default function SpotList({ spots, selectedId, onSelect, onNearby, onAI, 
               <Stars n={spot.rating || 0} />
               <span className="rating-text">{RATING_LABEL[spot.rating || 0]}</span>
               {checkTotal > 0 && (
-                <span className="checklist-badge">
-                  📋 {checkDone}/{checkTotal}
-                </span>
+                <span className="checklist-badge">📋 {checkDone}/{checkTotal}</span>
               )}
             </div>
             {spot.tags?.length > 0 && (
@@ -66,17 +64,6 @@ export default function SpotList({ spots, selectedId, onSelect, onNearby, onAI, 
                 {spot.memo.length > 55 ? spot.memo.slice(0, 55) + '...' : spot.memo}
               </p>
             )}
-            <div className="spot-action-btns">
-              <button className="nearby-btn" onClick={(e) => { e.stopPropagation(); onNearby(spot) }}>
-                🏥 주변
-              </button>
-              <button className="ai-btn" onClick={(e) => { e.stopPropagation(); onAI(spot) }}>
-                🤖 AI
-              </button>
-              <button className="checklist-btn" onClick={(e) => { e.stopPropagation(); onChecklist(spot) }}>
-                📋 임장
-              </button>
-            </div>
           </div>
         )
       })}
