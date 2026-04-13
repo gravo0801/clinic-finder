@@ -394,3 +394,279 @@ body {
   transition: all 0.15s;
 }
 .btn-delete:hover { background: #e53e3e; color: white; border-color: #e53e3e; }
+
+/* ── Nearby Button ── */
+.nearby-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  background: rgba(88,86,214,0.15);
+  border: 1px solid rgba(88,86,214,0.35);
+  border-radius: 8px;
+  color: #a09fe8;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nearby-btn:hover {
+  background: rgba(88,86,214,0.3);
+  color: #fff;
+}
+
+/* ── Nearby Panel ── */
+.nearby-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: 400px;
+  background: #ffffff;
+  box-shadow: -6px 0 30px rgba(0,0,0,0.2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.22s cubic-bezier(0.34,1.1,0.64,1);
+}
+
+.nearby-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
+.nearby-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.nearby-sub {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* 경쟁 요약 */
+.competition-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 14px 20px;
+  background: #f8f9ff;
+  border-bottom: 1px solid #eef0f8;
+}
+.comp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.comp-num {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a2e;
+  line-height: 1;
+}
+.comp-label {
+  font-size: 10px;
+  color: #999;
+  font-weight: 500;
+}
+.comp-divider {
+  width: 1px;
+  height: 32px;
+  background: #e5e7eb;
+}
+
+/* 반경 */
+.radius-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.radius-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  white-space: nowrap;
+}
+.radius-btns {
+  display: flex;
+  gap: 5px;
+}
+.radius-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid #e5e7eb;
+  background: white;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.14s;
+  color: #555;
+}
+.radius-btn.active {
+  background: #5856D6;
+  border-color: #5856D6;
+  color: white;
+}
+
+/* 진료과 필터 */
+.dept-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.dept-chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid #e5e7eb;
+  background: white;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.14s;
+  color: #555;
+}
+.dept-chip.active {
+  background: #5856D6;
+  border-color: #5856D6;
+  color: white;
+}
+
+/* 목록 */
+.nearby-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+.nearby-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  gap: 12px;
+  color: #999;
+  font-size: 13px;
+}
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #5856D6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.nearby-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px;
+  color: #e53e3e;
+  font-size: 13px;
+  text-align: center;
+}
+.retry-btn {
+  padding: 8px 16px;
+  background: #5856D6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.nearby-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  color: #999;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* 클리닉 카드 */
+.clinic-card {
+  background: #fafbfc;
+  border: 1.5px solid #f0f2f5;
+  border-radius: 10px;
+  padding: 11px 13px;
+  margin-bottom: 7px;
+  transition: all 0.15s;
+}
+.clinic-card:hover {
+  border-color: #d0d4f0;
+  background: #fff;
+}
+.clinic-card.competitor {
+  border-color: #ffcdd2;
+  background: #fff5f5;
+}
+.clinic-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.clinic-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.competitor-badge {
+  background: #FF3B30;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.clinic-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+.clinic-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.clinic-type {
+  font-size: 10px;
+  background: #f0f2f5;
+  color: #666;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.clinic-dept {
+  font-size: 11px;
+  color: #5856D6;
+  font-weight: 500;
+}
+.clinic-address {
+  font-size: 11px;
+  color: #999;
+  margin-top: 2px;
+}
+.clinic-tel {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+}
