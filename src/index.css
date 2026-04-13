@@ -862,3 +862,458 @@ body {
   transition: all 0.15s;
 }
 .btn-reanalyze:hover { background: #5856D6; color: white; }
+
+/* ── View Mode ── */
+.view-mode { padding-bottom: 12px; }
+.view-name {
+  font-size: 18px; font-weight: 800;
+  color: #1a1a2e; margin-bottom: 10px;
+}
+.view-rating {
+  display: flex; align-items: center; gap: 3px;
+  margin-bottom: 14px;
+}
+.view-rating-label {
+  font-size: 12px; font-weight: 700;
+  margin-left: 6px;
+}
+.view-section { margin-bottom: 16px; }
+.view-section-title {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: #aaa; margin-bottom: 7px;
+}
+.view-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.view-tag {
+  background: #f0f2ff;
+  color: #5856D6;
+  border: 1px solid #d0d4f0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px; font-weight: 600;
+}
+.view-memo {
+  background: #fafbfc;
+  border: 1px solid #f0f2f5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #444;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.view-coords {
+  font-family: 'SF Mono', monospace;
+  font-size: 11px; color: #aaa;
+}
+.view-actions { margin-top: 20px; margin-bottom: 8px; }
+.view-sub-actions { display: flex; gap: 8px; }
+.view-sub-btn {
+  flex: 1; padding: 10px 6px;
+  border-radius: 10px;
+  font-size: 12px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+  transition: all 0.15s; border: 1.5px solid;
+}
+.view-sub-btn.nearby {
+  background: rgba(88,86,214,0.08);
+  border-color: rgba(88,86,214,0.3);
+  color: #5856D6;
+}
+.view-sub-btn.nearby:hover { background: #5856D6; color: white; }
+.view-sub-btn.ai {
+  background: rgba(255,149,0,0.08);
+  border-color: rgba(255,149,0,0.3);
+  color: #FF9500;
+}
+.view-sub-btn.ai:hover { background: #FF9500; color: white; }
+
+/* 경쟁 기준 안내 */
+.competitor-guide {
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #FF6B35;
+  background: #fff5f0;
+  border-bottom: 1px solid #ffe0d0;
+}
+
+/* 전체/경쟁 토글 */
+.show-toggle {
+  display: flex;
+  padding: 8px 16px;
+  gap: 6px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.toggle-btn {
+  flex: 1; padding: 6px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  background: white;
+  font-size: 11px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+  transition: all 0.14s; color: #555;
+}
+.toggle-btn.active {
+  background: #1a1a2e; border-color: #1a1a2e; color: white;
+}
+
+/* ── Action buttons (3개) ── */
+.spot-action-btns {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.action-btn {
+  flex: 1;
+  padding: 6px 2px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid;
+}
+.action-btn.nearby {
+  background: rgba(88,86,214,0.1);
+  border-color: rgba(88,86,214,0.3);
+  color: #a09fe8;
+}
+.action-btn.nearby:hover { background: #5856D6; color: #fff; }
+.action-btn.ai {
+  background: rgba(255,149,0,0.1);
+  border-color: rgba(255,149,0,0.3);
+  color: #ffb84d;
+}
+.action-btn.ai:hover { background: #FF9500; color: #fff; }
+.action-btn.imjang {
+  background: rgba(52,199,89,0.1);
+  border-color: rgba(52,199,89,0.3);
+  color: #34C759;
+}
+.action-btn.imjang:hover { background: #34C759; color: #fff; }
+
+/* 임장 배지 */
+.imjang-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* ── Imjang Panel ── */
+.imjang-panel {
+  position: absolute;
+  right: 0; top: 0;
+  height: 100%;
+  width: 400px;
+  background: #ffffff;
+  box-shadow: -6px 0 30px rgba(0,0,0,0.2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.22s cubic-bezier(0.34,1.1,0.64,1);
+}
+
+/* 점수 바 */
+.imjang-score-bar {
+  background: #f8f9ff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.imjang-score-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.imjang-score-num {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+}
+.imjang-score-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+.imjang-score-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: #999;
+}
+.imjang-progress-bg {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.imjang-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* 카테고리 */
+.imjang-category {
+  margin-bottom: 14px;
+}
+.imjang-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+.imjang-cat-icon { font-size: 14px; }
+.imjang-cat-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a2e;
+  flex: 1;
+}
+.imjang-cat-count {
+  font-size: 10px;
+  color: #aaa;
+}
+
+/* 체크 아이템 */
+.imjang-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 3px;
+  border: 1.5px solid transparent;
+  transition: all 0.12s;
+  background: #fafbfc;
+}
+.imjang-item:hover { background: #f0f2ff; border-color: #d0d4f0; }
+.imjang-item.checked {
+  background: #f0fff4;
+  border-color: #b7ebc8;
+}
+.imjang-checkbox {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  accent-color: #34C759;
+  cursor: pointer;
+}
+.imjang-item-label {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #444;
+}
+.imjang-item.checked .imjang-item-label {
+  color: #1a7a3a;
+  font-weight: 500;
+}
+
+/* ── Checklist badge ── */
+.checklist-badge {
+  font-size: 10px;
+  color: #34C759;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* ── 3버튼 레이아웃 ── */
+.spot-action-btns {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.nearby-btn, .ai-btn, .checklist-btn {
+  flex: 1;
+  padding: 6px 2px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid;
+}
+.nearby-btn {
+  background: rgba(88,86,214,0.12);
+  border-color: rgba(88,86,214,0.3);
+  color: #a09fe8;
+}
+.nearby-btn:hover { background: rgba(88,86,214,0.28); color: #fff; }
+.ai-btn {
+  background: rgba(255,149,0,0.12);
+  border-color: rgba(255,149,0,0.3);
+  color: #ffb84d;
+}
+.ai-btn:hover { background: rgba(255,149,0,0.28); color: #fff; }
+.checklist-btn {
+  background: rgba(52,199,89,0.12);
+  border-color: rgba(52,199,89,0.3);
+  color: #34C759;
+}
+.checklist-btn:hover { background: rgba(52,199,89,0.28); color: #fff; }
+
+/* ── Checklist Panel ── */
+.checklist-panel {
+  position: absolute;
+  right: 0; top: 0;
+  height: 100%;
+  width: 400px;
+  background: #fff;
+  box-shadow: -6px 0 30px rgba(0,0,0,0.2);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.22s cubic-bezier(0.34,1.1,0.64,1);
+}
+
+/* 진행률 */
+.checklist-progress {
+  padding: 12px 20px;
+  background: #f8f9ff;
+  border-bottom: 1px solid #eef0f8;
+}
+.progress-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.progress-label { font-size: 11px; color: #888; font-weight: 600; }
+.progress-count { font-size: 11px; color: #5856D6; font-weight: 700; }
+.progress-bar-wrap {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.progress-pct {
+  font-size: 11px;
+  color: #aaa;
+  text-align: right;
+}
+
+/* 임장일 */
+.visit-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.visit-date-label {
+  font-size: 11px; font-weight: 700;
+  color: #888; white-space: nowrap;
+}
+.visit-date-input {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  color: #1a1a2e;
+}
+.visit-date-input:focus { border-color: #5856D6; }
+
+/* 카테고리 탭 */
+.checklist-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid #f0f2f5;
+  scrollbar-width: none;
+}
+.checklist-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1.5px solid #e5e7eb;
+  background: white;
+  font-size: 11px; font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.14s;
+  color: #555;
+}
+.checklist-tab.active {
+  background: #5856D6;
+  border-color: #5856D6;
+  color: white;
+}
+.tab-badge {
+  background: rgba(0,0,0,0.1);
+  border-radius: 10px;
+  padding: 1px 5px;
+  font-size: 10px;
+}
+.checklist-tab.active .tab-badge { background: rgba(255,255,255,0.25); }
+
+/* 체크리스트 본문 */
+.checklist-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.checklist-group { margin-bottom: 16px; }
+.checklist-group-title {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: #888; margin-bottom: 8px;
+}
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.14s;
+  margin-bottom: 3px;
+}
+.checklist-item:hover { background: #f8f9ff; }
+.checklist-item.done { opacity: 0.6; }
+.check-box {
+  width: 18px; height: 18px;
+  border-radius: 5px;
+  border: 2px solid #d0d4e0;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+  font-size: 11px; font-weight: 700;
+  transition: all 0.15s;
+}
+.check-box.checked {
+  background: #5856D6;
+  border-color: #5856D6;
+  color: white;
+}
+.check-text {
+  font-size: 13px; color: #333; line-height: 1.4;
+}
+.checklist-item.done .check-text {
+  text-decoration: line-through;
+  color: #aaa;
+}
+
+/* 저장 버튼 영역 */
+.checklist-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f2f5;
+  background: #fafbfc;
+}
