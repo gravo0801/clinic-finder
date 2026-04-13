@@ -24,7 +24,9 @@ export default function MapView({ spots, centerOn, selectedSpot, newSpotCoords, 
     }
 
     // 기존 스크립트 전부 제거 (잘못된 파라미터 포함)
-    document.querySelectorAll('script[src*="maps.js"]').forEach((s) => s.remove())
+    document.querySelectorAll('script[src*="naver"]').forEach((s) => {
+  if (s.src.includes('ncpClientId')) s.remove()
+})
 
     const script = document.createElement('script')
     script.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=psc3xcgzk6'
