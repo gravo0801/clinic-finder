@@ -13,7 +13,7 @@ function Stars({ n }) {
   )
 }
 
-export default function SpotList({ spots, selectedId, onSelect, onNearby }) {
+export default function SpotList({ spots, selectedId, onSelect, onNearby, onAI }) {
   if (spots.length === 0) {
     return (
       <div className="empty-state">
@@ -55,15 +55,23 @@ export default function SpotList({ spots, selectedId, onSelect, onNearby }) {
           )}
           {spot.memo && (
             <p className="spot-memo-preview">
-              {spot.memo.length > 55 ? spot.memo.slice(0, 55) + '…' : spot.memo}
+              {spot.memo.length > 55 ? spot.memo.slice(0, 55) + '...' : spot.memo}
             </p>
           )}
-          <button
-            className="nearby-btn"
-            onClick={(e) => { e.stopPropagation(); onNearby(spot) }}
-          >
-            🏥 주변 의원 검색
-          </button>
+          <div className="spot-action-btns">
+            <button
+              className="nearby-btn"
+              onClick={(e) => { e.stopPropagation(); onNearby(spot) }}
+            >
+              🏥 주변 의원
+            </button>
+            <button
+              className="ai-btn"
+              onClick={(e) => { e.stopPropagation(); onAI(spot) }}
+            >
+              🤖 AI 분석
+            </button>
+          </div>
         </div>
       ))}
     </div>
