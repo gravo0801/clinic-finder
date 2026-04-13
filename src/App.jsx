@@ -4,19 +4,18 @@ import SpotList from './components/SpotList'
 import SpotPanel from './components/SpotPanel'
 import NearbyPanel from './components/NearbyPanel'
 import AIAnalysisPanel from './components/AIAnalysisPanel'
+import ChecklistPanel from './components/ChecklistPanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
   const [selectedSpot, setSelectedSpot] = useState(null)
-  const [panelMode, setPanelMode] = useState(null) // 'new'|'edit'|'nearby'|'ai'|null
+  const [panelMode, setPanelMode] = useState(null) // 'new'|'edit'|'nearby'|'ai'|'checklist'|null
   const [newCoords, setNewCoords] = useState(null)
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
 
-  useEffect(() => {
-    return subscribeSpots(setSpots)
-  }, [])
+  useEffect(() => { return subscribeSpots(setSpots) }, [])
 
   const handleMapClick = (lat, lng) => {
     setNewCoords({ lat, lng })
@@ -40,6 +39,12 @@ export default function App() {
   const handleAIOpen = (spot) => {
     setSelectedSpot(spot)
     setPanelMode('ai')
+    setCenterOn({ lat: spot.lat, lng: spot.lng })
+  }
+
+  const handleChecklistOpen = (spot) => {
+    setSelectedSpot(spot)
+    setPanelMode('checklist')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
   }
 
@@ -85,6 +90,7 @@ export default function App() {
           onSelect={handleSpotSelect}
           onNearby={handleNearbyOpen}
           onAI={handleAIOpen}
+          onChecklist={handleChecklistOpen}
         />
       </aside>
 
@@ -115,6 +121,7 @@ export default function App() {
           onClose={handleClose}
           onNearby={() => selectedSpot && handleNearbyOpen(selectedSpot)}
           onAI={() => selectedSpot && handleAIOpen(selectedSpot)}
+          onChecklist={() => selectedSpot && handleChecklistOpen(selectedSpot)}
         />
       )}
 
@@ -130,6 +137,13 @@ export default function App() {
         <AIAnalysisPanel
           spot={selectedSpot}
           nearbyClinics={nearbyClinics}
+          onClose={handleClose}
+        />
+      )}
+
+      {panelMode === 'checklist' && selectedSpot && (
+        <ChecklistPanel
+          spot={selectedSpot}
           onClose={handleClose}
         />
       )}
