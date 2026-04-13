@@ -31,13 +31,16 @@ function loadNaverScript(clientId) {
       return
     }
     // 이미 스크립트 태그가 있는 경우 기다림
-    const existing = document.querySelector('script[src*="maps.apigw.ntruss.com"]') ||
-                     document.querySelector('script[src*="openapi.map.naver.com"]')
-    if (existing) {
-      existing.addEventListener('load', resolve)
-      existing.addEventListener('error', reject)
-      return
-    }
+const existing = document.querySelector('script[src*="ncpKeyId"]')
+if (existing) {
+  if (window.naver && window.naver.maps) { resolve(); return }
+  existing.addEventListener('load', resolve)
+  existing.addEventListener('error', reject)
+  return
+}
+// 잘못된 파라미터의 기존 스크립트 제거
+const oldScript = document.querySelector('script[src*="ncpClientId"]')
+if (oldScript) oldScript.remove()
     // 새로 스크립트 삽입
     const script = document.createElement('script')
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${clientId}`
