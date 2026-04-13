@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react'
+import { savePinnedClinic, deletePinnedClinic, subscribePinnedClinics } from '../firebase'
 
 const RADIUS_OPTIONS = [500, 1000, 2000, 3000]
 
 const MARKER_STYLES = [
-  { icon: '📍', color: '#FF3B30', label: '빨강' },
-  { icon: '⭐', color: '#FF9500', label: '주황' },
-  { icon: '💛', color: '#FFCC00', label: '노랑' },
-  { icon: '💚', color: '#34C759', label: '초록' },
-  { icon: '💙', color: '#007AFF', label: '파랑' },
-  { icon: '💜', color: '#AF52DE', label: '보라' },
-  { icon: '🔴', color: '#FF3B30', label: '동그라미' },
-  { icon: '⭐', color: '#FFD700', label: '별' },
-  { icon: '❤️', color: '#FF2D55', label: '하트' },
-  { icon: '⚠️', color: '#FF9500', label: '경고' },
+  { icon: '📍', color: '#FF3B30' },
+  { icon: '⭐', color: '#FFD700' },
+  { icon: '❤️', color: '#FF2D55' },
+  { icon: '💙', color: '#007AFF' },
+  { icon: '💚', color: '#34C759' },
+  { icon: '💜', color: '#AF52DE' },
+  { icon: '🔴', color: '#FF3B30' },
+  { icon: '🟡', color: '#FFCC00' },
+  { icon: '⚠️', color: '#FF9500' },
+  { icon: '🏥', color: '#5856D6' },
 ]
 
 function DistanceBadge({ distance }) {
@@ -38,21 +39,21 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showAll, setShowAll] = useState(false)
-  // 마킹된 의원: { [id]: { styleIdx, memo } }
-  const [marked, setMarked] = useState({})
-  // 스타일 피커 열린 의원 id
   const [pickerOpen, setPickerOpen] = useState(null)
+  // Firebase에서 불러온 저장된 핀들
+  const [savedPins, setSavedPins] = useState([]) // [{id, name, lat, lng, markerStyle, ...}]
+
+  // 저장된 핀 구독
+  useEffect(() => {
+    if (!spot?.id) return
+    const unsub = subscribePinnedClinics(spot.id, (pins) => {
+      setSavedPins(pins)
+      if (onMarkedClinicsChange) onMarkedClinicsChange(pins)
+    })
+    return unsub
+  }, [spot?.id])
 
   useEffect(() => { fetchNearby() }, [spot?.id, radius])
-
-  // 마킹 변경 시 부모에게 알림
-  useEffect(() => {
-    if (!onMarkedClinicsChange) return
-    const markedList = items
-      .filter((i) => marked[i.id] !== undefined)
-      .map((i) => ({ ...i, markerStyle: MARKER_STYLES[marked[i.id]?.styleIdx ?? 0] }))
-    onMarkedClinicsChange(markedList)
-  }, [marked, items])
 
   const fetchNearby = async () => {
     if (!spot?.lat || !spot?.lng) return
@@ -72,21 +73,25 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
     }
   }
 
-  const toggleMark = (item, styleIdx = 0) => {
-    setMarked((prev) => {
-      const next = { ...prev }
-      if (next[item.id] !== undefined) {
-        delete next[item.id]
-      } else {
-        next[item.id] = { styleIdx }
-      }
-      return next
-    })
+  const isPinned = (clinicId) => savedPins.some((p) => p.id === clinicId)
+
+  const handlePin = async (item, styleIdx = 0) => {
+    if (isPinned(item.id)) {
+      await deletePinnedClinic(spot.id, item.id)
+    } else {
+      await savePinnedClinic(spot.id, {
+        ...item,
+        markerStyle: MARKER_STYLES[styleIdx],
+      })
+    }
     setPickerOpen(null)
   }
 
-  const changeStyle = (id, styleIdx) => {
-    setMarked((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), styleIdx } }))
+  const changeStyle = async (item, styleIdx) => {
+    await savePinnedClinic(spot.id, {
+      ...item,
+      markerStyle: MARKER_STYLES[styleIdx],
+    })
     setPickerOpen(null)
   }
 
@@ -127,15 +132,21 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
           </div>
           <div className="comp-divider" />
           <div className="comp-stat">
-            <span className="comp-num" style={{ color: '#5856D6' }}>{Object.keys(marked).length}</span>
-            <span className="comp-label">지도 표시</span>
+            <span className="comp-num" style={{ color: '#5856D6' }}>{savedPins.length}</span>
+            <span className="comp-label">📌 저장됨</span>
           </div>
         </div>
       )}
 
+      {/* 저장된 핀 안내 */}
+      {savedPins.length > 0 && (
+        <div className="saved-pins-notice">
+          📌 {savedPins.length}개 의원이 지도에 저장되어 있습니다 — 재검색 없이 유지됩니다
+        </div>
+      )}
+
       <div className="competitor-guide">
-        🎯 경쟁 기준: 가정의학과 · 내과 · 검진의원 · 365의원 · 일반의
-        &nbsp;|&nbsp; 📌 의원 클릭 → 지도에 표시
+        🎯 경쟁 기준: 내과 · 가정의학과 · 365의원 &nbsp;|&nbsp; 📌 클릭 → 지도에 영구 저장
       </div>
 
       {/* 반경 */}
@@ -185,31 +196,31 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
         )}
 
         {!loading && displayItems.map((item) => {
-          const isMarked = marked[item.id] !== undefined
-          const styleIdx = marked[item.id]?.styleIdx ?? 0
-          const style = MARKER_STYLES[styleIdx]
+          const pinned = isPinned(item.id)
+          const savedPin = savedPins.find((p) => p.id === item.id)
+          const currentStyle = savedPin?.markerStyle || MARKER_STYLES[0]
 
           return (
             <div key={item.id}
-              className={`clinic-card ${item.isCompetitor ? 'competitor' : ''} ${isMarked ? 'map-marked' : ''}`}
+              className={`clinic-card ${item.isCompetitor ? 'competitor' : ''} ${pinned ? 'map-marked' : ''}`}
             >
               <div className="clinic-card-top">
                 <div className="clinic-name-row">
                   {item.isCompetitor && <span className="competitor-badge">경쟁</span>}
+                  {pinned && <span className="pinned-badge">📌저장</span>}
                   <span className="clinic-name">{item.name}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <DistanceBadge distance={item.distance} />
-                  {/* 마킹 버튼 */}
+                  {/* 핀 버튼 */}
                   <div style={{ position: 'relative' }}>
                     <button
-                      className={`mark-btn ${isMarked ? 'marked' : ''}`}
-                      onClick={() => isMarked ? toggleMark(item) : setPickerOpen(pickerOpen === item.id ? null : item.id)}
-                      title={isMarked ? '지도 표시 해제' : '지도에 표시'}
+                      className={`mark-btn ${pinned ? 'marked' : ''}`}
+                      onClick={() => pinned ? handlePin(item) : setPickerOpen(pickerOpen === item.id ? null : item.id)}
+                      title={pinned ? '저장 해제' : '지도에 저장'}
                     >
-                      {isMarked ? style.icon : '📌'}
+                      {pinned ? currentStyle.icon : '📌'}
                     </button>
-
                     {/* 스타일 피커 */}
                     {pickerOpen === item.id && (
                       <div className="style-picker">
@@ -217,19 +228,15 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
                         <div className="style-picker-grid">
                           {MARKER_STYLES.map((s, idx) => (
                             <button key={idx} className="style-option"
-                              onClick={() => { toggleMark(item, idx) }}
-                              title={s.label}
-                            >
-                              {s.icon}
-                            </button>
+                              onClick={() => handlePin(item, idx)}
+                            >{s.icon}</button>
                           ))}
                         </div>
                       </div>
                     )}
                   </div>
-
-                  {/* 스타일 변경 (마킹된 경우) */}
-                  {isMarked && (
+                  {/* 저장된 경우 스타일 변경 버튼 */}
+                  {pinned && (
                     <button className="style-change-btn"
                       onClick={() => setPickerOpen(pickerOpen === item.id ? null : item.id)}
                       title="스타일 변경"
@@ -237,7 +244,6 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
                   )}
                 </div>
               </div>
-
               <div className="clinic-meta">
                 <span className="clinic-type">{item.type}</span>
                 {item.dept && (
