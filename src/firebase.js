@@ -1,15 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import {
-  getFirestore,
-  collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  orderBy,
-  query,
+  getFirestore, collection, addDoc, updateDoc, deleteDoc,
+  doc, onSnapshot, serverTimestamp, orderBy, query, setDoc, getDoc,
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -24,6 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
 
+// ── 후보지(스팟) CRUD ──────────────────────────────────────
 const spotsCol = collection(db, 'spots')
 
 export const addSpot = (spot) =>
@@ -39,5 +32,27 @@ export const subscribeSpots = (callback) => {
   const q = query(spotsCol, orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  })
+}
+
+// ── 저장된 의원 핀 CRUD ────────────────────────────────────
+// spotId별로 핀 목록을 저장 (spots/{spotId}/pins/{pinId})
+
+export const savePinnedClinic = async (spotId, clinic) => {
+  const pinRef = doc(db, 'spots', spotId, 'pins', clinic.id)
+  await setDoc(pinRef, {
+    ...clinic,
+    savedAt: serverTimestamp(),
+  })
+}
+
+export const deletePinnedClinic = async (spotId, clinicId) => {
+  await deleteDoc(doc(db, 'spots', spotId, 'pins', clinicId))
+}
+
+export const subscribePinnedClinics = (spotId, callback) => {
+  const pinsCol = collection(db, 'spots', spotId, 'pins')
+  return onSnapshot(pinsCol, (snap) => {
+    callback(snap.docs.map((d) => ({ ...d.data() })))
   })
 }
