@@ -1,81 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { db } from '../firebase'
+import { collection, addDoc, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
 
-// 마크다운 파싱 (굵은 글씨, 항목)
-function parseMarkdown(text) {
-  return text
-    .split('\n')
-    .map((line, i) => {
-      // ## 헤더
-      if (line.startsWith('## ')) {
-        return <h3 key={i} className="ai-section-title">{line.replace('## ', '')}</h3>
-      }
-      // **굵은 제목**
-      if (/^\*\*(.+)\*\*/.test(line)) {
-        const title = line.replace(/^\*\*(.+)\*\*.*/, '$1')
-        const rest = line.replace(/^\*\*(.+)\*\*/, '').trim()
-        return (
-          <div key={i} className="ai-section-header">
-            <strong>{title}</strong>
-            {rest && <span> {rest}</span>}
-          </div>
-        )
-      }
-      // bullet
-      if (line.startsWith('- ') || line.startsWith('• ')) {
-        const content = line.replace(/^[-•] /, '')
-        return (
-          <div key={i} className="ai-bullet">
-            <span className="ai-bullet-dot">▸</span>
-            <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />
-          </div>
-        )
-      }
-      // 번호 목록
-      if (/^\d+\.\s/.test(line)) {
-        const content = line.replace(/^\d+\.\s/, '')
-        return (
-          <div key={i} className="ai-numbered">
-            <span dangerouslySetInnerHTML={{ __html: content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />
-          </div>
-        )
-      }
-      // 빈 줄
-      if (!line.trim()) return <div key={i} className="ai-spacer" />
-      // 일반 텍스트
-      return (
-        <p key={i} className="ai-text"
-          dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }}
-        />
-      )
-    })
-}
-
-// 점수 추출
-function extractScore(text) {
-  const match = text.match(/(\d{1,3})\s*[점\/]?\s*(100점|점|\/100)?/)
-  if (!match) return null
-  const score = parseInt(match[1])
-  return score >= 0 && score <= 100 ? score : null
-}
-
-function ScoreGauge({ score }) {
-  const color =
-    score >= 80 ? '#34C759' :
-    score >= 60 ? '#FFCC00' :
-    score >= 40 ? '#FF9500' : '#FF3B30'
-  const label =
-    score >= 80 ? '개원 강력 추천' :
-    score >= 60 ? '개원 검토 가능' :
-    score >= 40 ? '추가 검토 필요' : '개원 비추천'
-
+function ScoreGauge({ score, grade }) {
+  const color = score>=80?'#34C759':score>=60?'#FFCC00':score>=40?'#FF9500':'#FF3B30'
   return (
     <div className="score-gauge">
       <div className="score-circle" style={{ borderColor: color }}>
         <span className="score-num" style={{ color }}>{score}</span>
         <span className="score-unit">점</span>
       </div>
-      <div>
-        <div className="score-label" style={{ color }}>{label}</div>
+      <div style={{ flex: 1 }}>
+        <div className="score-label" style={{ color }}>{grade}</div>
         <div className="score-bar-wrap">
           <div className="score-bar" style={{ width: `${score}%`, background: color }} />
         </div>
@@ -84,15 +20,81 @@ function ScoreGauge({ score }) {
   )
 }
 
+function ResultCard({ result }) {
+  return (
+    <div className="ai-result">
+      <ScoreGauge score={result.score} grade={result.grade} />
+
+      <div className="ai-summary">{result.summary}</div>
+
+      <div className="ai-grid">
+        <div className="ai-section strength">
+          <div className="ai-section-title">💪 강점</div>
+          {result.strengths?.map((s, i) => <div key={i} className="ai-bullet"><span className="ai-bullet-dot">▸</span><span>{s}</span></div>)}
+        </div>
+        <div className="ai-section weakness">
+          <div className="ai-section-title">⚠️ 약점</div>
+          {result.weaknesses?.map((w, i) => <div key={i} className="ai-bullet"><span className="ai-bullet-dot">▸</span><span>{w}</span></div>)}
+        </div>
+      </div>
+
+      <div className="ai-section">
+        <div className="ai-section-title">🏥 경쟁 환경</div>
+        <p className="ai-text">{result.competitor_analysis}</p>
+      </div>
+
+      <div className="ai-section">
+        <div className="ai-section-title">🔬 내시경 클리닉 적합성</div>
+        <p className="ai-text">{result.endoscopy_fit}</p>
+      </div>
+
+      <div className="ai-section">
+        <div className="ai-section-title">🎗️ 종양내과 협업 적합성</div>
+        <p className="ai-text">{result.oncology_fit}</p>
+      </div>
+
+      <div className="ai-section">
+        <div className="ai-section-title">💊 추천 진료과목 믹스</div>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+          {result.recommended_specialties?.map((s, i) => (
+            <span key={i} style={{ background:'#f0f0ff', color:'#5856D6', border:'1px solid #d0d4f0', borderRadius:6, padding:'3px 10px', fontSize:12 }}>{s}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="ai-section">
+        <div className="ai-section-title">📋 임장 시 중점 확인사항</div>
+        {result.checkpoints?.map((c, i) => (
+          <div key={i} className="ai-bullet"><span className="ai-bullet-dot" style={{ color:'#FF9500' }}>✓</span><span>{c}</span></div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
-  const [analysis, setAnalysis] = useState(null)
+  const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [history, setHistory] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
+
+  // 분석 히스토리 구독
+  useEffect(() => {
+    if (!spot?.id) return
+    const q = query(collection(db, 'spots', spot.id, 'analyses'), orderBy('createdAt', 'desc'))
+    const unsub = onSnapshot(q, (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      setHistory(items)
+      // 최신 분석 자동 로드
+      if (items.length > 0 && !result) setResult(items[0].result)
+    })
+    return unsub
+  }, [spot?.id])
 
   const handleAnalyze = async () => {
     setLoading(true)
     setError(null)
-    setAnalysis(null)
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -101,7 +103,14 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      setAnalysis(data.analysis)
+
+      // Firebase에 저장
+      await addDoc(collection(db, 'spots', spot.id, 'analyses'), {
+        result: data.result,
+        createdAt: serverTimestamp(),
+        competitorCount: nearbyClinics.filter((c) => c.isCompetitor).length,
+      })
+      setResult(data.result)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -109,15 +118,19 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
     }
   }
 
-  const score = analysis ? extractScore(analysis) : null
+  const formatDate = (ts) => {
+    if (!ts?.seconds) return ''
+    return new Date(ts.seconds * 1000).toLocaleDateString('ko-KR', {
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    })
+  }
 
   return (
     <div className="ai-panel">
-      {/* Header */}
       <div className="panel-header">
         <div>
           <h2 className="panel-title">🤖 AI 입지 분석</h2>
-          <p className="panel-coords">{spot?.name || '선택된 스팟'}</p>
+          <p className="panel-coords">{spot?.name}</p>
         </div>
         <button className="close-btn" onClick={onClose}>✕</button>
       </div>
@@ -133,38 +146,59 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
           <div className="ai-data-item">
             <span className="ai-data-icon">🏥</span>
             <span className="ai-data-label">주변 의료기관</span>
-            <span className={`ai-data-status ${nearbyClinics.length > 0 ? 'ok' : 'missing'}`}>
-              {nearbyClinics.length > 0 ? `${nearbyClinics.length}개` : '미수집'}
+            <span className={`ai-data-status ${nearbyClinics.length>0?'ok':'missing'}`}>
+              {nearbyClinics.length>0 ? `${nearbyClinics.length}개` : '미수집'}
             </span>
+          </div>
+          <div className="ai-data-item">
+            <span className="ai-data-icon">📊</span>
+            <span className="ai-data-label">분석 히스토리</span>
+            <span className="ai-data-status ok">{history.length}회</span>
           </div>
         </div>
 
         {nearbyClinics.length === 0 && (
-          <div className="ai-notice">
-            💡 주변 의원 검색 후 분석하면 더 정확한 경쟁 분석이 가능합니다.
-            태그·메모 기반으로도 분석은 가능합니다.
+          <div className="ai-notice">💡 주변 의원 검색 후 분석하면 더 정확한 경쟁 분석이 가능합니다.</div>
+        )}
+
+        {/* 히스토리 */}
+        {history.length > 1 && (
+          <div className="ai-history-row">
+            <button className="ai-history-toggle" onClick={() => setShowHistory(!showHistory)}>
+              📅 이전 분석 {history.length}개 {showHistory ? '▲' : '▼'}
+            </button>
+          </div>
+        )}
+        {showHistory && (
+          <div className="ai-history-list">
+            {history.map((h) => (
+              <button key={h.id} className="ai-history-item"
+                onClick={() => { setResult(h.result); setShowHistory(false) }}>
+                <span className="ai-history-score" style={{ color: h.result?.score>=70?'#34C759':'#FF9500' }}>
+                  {h.result?.score}점
+                </span>
+                <span className="ai-history-date">{formatDate(h.createdAt)}</span>
+                <span className="ai-history-comp">경쟁의원 {h.competitorCount}개</span>
+              </button>
+            ))}
           </div>
         )}
 
         {/* 분석 버튼 */}
-        {!analysis && !loading && (
+        {!loading && (
           <button className="btn-analyze" onClick={handleAnalyze}>
-            ✨ AI 입지 분석 시작
+            {result ? '🔄 재분석하기' : '✨ AI 입지 분석 시작'}
           </button>
         )}
 
-        {/* 로딩 */}
         {loading && (
           <div className="ai-loading">
-            <div className="ai-loading-dots">
-              <span /><span /><span />
-            </div>
+            <div className="ai-loading-dots"><span /><span /><span /></div>
             <p>Claude AI가 입지를 분석 중입니다...</p>
             <p className="ai-loading-sub">보통 10~20초 소요됩니다</p>
           </div>
         )}
 
-        {/* 에러 */}
         {error && (
           <div className="ai-error">
             <p>⚠️ {error}</p>
@@ -172,19 +206,7 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
           </div>
         )}
 
-        {/* 결과 */}
-        {analysis && (
-          <div className="ai-result">
-            {score !== null && <ScoreGauge score={score} />}
-            <div className="ai-content">{parseMarkdown(analysis)}</div>
-            <button
-              className="btn-reanalyze"
-              onClick={handleAnalyze}
-            >
-              🔄 재분석
-            </button>
-          </div>
-        )}
+        {result && !loading && <ResultCard result={result} />}
       </div>
     </div>
   )
