@@ -1,4 +1,3 @@
-// Vercel 서버리스 함수 - Claude AI 입지 분석
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST')
@@ -15,20 +14,12 @@ export default async function handler(req, res) {
   const RATING_LABEL = ['미평가', '검토필요', '보통', '양호', '우수', '최우수']
 
   const competitorList = nearbyClinics
-    .filter((c) => {
-      const d = c.dept || ''
-      return d.includes('내과') || d.includes('가정의학과') || d.includes('소화기')
-    })
+    .filter((c) => c.isCompetitor)
     .slice(0, 10)
-    .map((c) => `- ${c.name} (${c.distance}m, ${c.dept})`)
+    .map((c) => `- ${c.name} (${c.distance}m, ${c.dept || '진료과 미상'})`)
     .join('\n')
 
-  const allClinicList = nearbyClinics
-    .slice(0, 20)
-    .map((c) => `- ${c.name} (${c.distance}m, ${c.type})`)
-    .join('\n')
-
-  const prompt = `당신은 의원 개원 입지 분석 전문가입니다. 아래 정보를 바탕으로 가정의학과/내과 개원 관점에서 종합 입지 분석 보고서를 작성해주세요.
+  const prompt = `당신은 의원 개원 입지 분석 전문가입니다. 아래 정보를 바탕으로 가정의학과/내과 + 내시경 클리닉 공동개원 관점에서 입지를 분석하세요.
 
 ## 후보지 정보
 - 이름: ${spot.name || '미입력'}
@@ -37,23 +28,26 @@ export default async function handler(req, res) {
 - 특성 태그: ${spot.tags?.join(', ') || '없음'}
 - 메모: ${spot.memo || '없음'}
 
-## 주변 의료기관 현황 (심평원 데이터)
+## 주변 의료기관 (심평원 데이터)
 ${nearbyClinics.length > 0
-  ? `총 ${nearbyClinics.length}개 의료기관\n\n[직접 경쟁 의원 (내과/가정의학과/소화기내과)]\n${competitorList || '없음'}\n\n[전체 의료기관 (상위 20개)]\n${allClinicList}`
-  : '아직 주변 의료기관 데이터가 없습니다. 태그와 메모 기반으로 분석합니다.'}
+  ? `총 ${nearbyClinics.length}개\n경쟁 의원:\n${competitorList || '없음'}`
+  : '데이터 없음 - 태그/메모 기반으로만 분석'}
 
-## 분석 요청
-다음 항목을 포함한 입지 분석 보고서를 한국어로 작성해주세요:
+## 응답 형식
+반드시 아래 JSON 형식으로만 응답하세요. 마크다운 코드블록 없이 순수 JSON만:
 
-1. **종합 평가** (3~4줄 요약)
-2. **입지 강점** (bullet 3~5개)
-3. **입지 약점 및 리스크** (bullet 3~5개)
-4. **경쟁 환경 분석** (경쟁 강도, 틈새 기회)
-5. **추천 진료과목 믹스** (메인 + 보조 진료과목 제안)
-6. **개원 적합도 점수** (0~100점, 이유 포함)
-7. **임장 시 중점 확인사항** (3~5개)
-
-실용적이고 구체적으로 작성해주세요.`
+{
+  "score": 75,
+  "grade": "개원 검토 가능",
+  "summary": "3~4줄 종합 평가 텍스트",
+  "strengths": ["강점1", "강점2", "강점3"],
+  "weaknesses": ["약점1", "약점2", "약점3"],
+  "competitor_analysis": "경쟁 환경 분석 텍스트 (2~3줄)",
+  "recommended_specialties": ["추천 진료과목1", "추천 진료과목2"],
+  "checkpoints": ["임장 시 확인사항1", "임장 시 확인사항2", "임장 시 확인사항3"],
+  "endoscopy_fit": "내시경 클리닉 적합성 평가 (1~2줄)",
+  "oncology_fit": "종양내과 협업 적합성 평가 (1~2줄)"
+}`
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -65,18 +59,20 @@ ${nearbyClinics.length > 0
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        max_tokens: 1500,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
-
     const data = await response.json()
     if (data.error) throw new Error(data.error.message)
 
-    const text = data.content?.[0]?.text || ''
-    return res.status(200).json({ analysis: text })
+    let text = data.content?.[0]?.text || ''
+    // JSON 파싱
+    text = text.replace(/```json|```/g, '').trim()
+    const parsed = JSON.parse(text)
+    return res.status(200).json({ result: parsed })
   } catch (err) {
-    console.error('Anthropic error:', err)
+    console.error('AI 분석 오류:', err)
     return res.status(500).json({ error: err.message })
   }
 }
