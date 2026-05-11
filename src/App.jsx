@@ -7,6 +7,7 @@ import AIAnalysisPanel from './components/AIAnalysisPanel'
 import ChecklistPanel from './components/ChecklistPanel'
 import SearchBar from './components/SearchBar'
 import ComparePanel from './components/ComparePanel'
+import MigrationBanner from './components/MigrationBanner'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics } from './firebase'
 
 export default function App() {
@@ -120,6 +121,7 @@ export default function App() {
       </aside>
 
       <main className="map-area">
+        <MigrationBanner />
         <div className="map-searchbar">
           <SearchBar onSelectPlace={handleSearchSelect} />
         </div>

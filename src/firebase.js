@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
   setDoc,
+  getDocs,
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -145,4 +146,31 @@ export const subscribePinnedClinics = (spotId, callback) => {
     if (unsubscribePins) unsubscribePins()
     unsubscribeAuth()
   }
+}
+
+const copySubcollection = async (oldSpotId, newSpotId, subcollectionName) => {
+  const sourceSnap = await getDocs(collection(db, 'spots', oldSpotId, subcollectionName))
+  await Promise.all(sourceSnap.docs.map(async (sourceDoc) => {
+    await setDoc(await userDoc('spots', newSpotId, subcollectionName, sourceDoc.id), sourceDoc.data())
+  }))
+}
+
+export const getLegacySpotCount = async () => {
+  await ensureAuth()
+  const legacySnap = await getDocs(collection(db, 'spots'))
+  return legacySnap.size
+}
+
+export const migrateLegacySpots = async () => {
+  await ensureAuth()
+  const legacySnap = await getDocs(collection(db, 'spots'))
+
+  await Promise.all(legacySnap.docs.map(async (legacySpot) => {
+    const spotData = legacySpot.data()
+    await setDoc(await userDoc('spots', legacySpot.id), spotData)
+    await copySubcollection(legacySpot.id, legacySpot.id, 'pins')
+    await copySubcollection(legacySpot.id, legacySpot.id, 'analyses')
+  }))
+
+  return legacySnap.size
 }
