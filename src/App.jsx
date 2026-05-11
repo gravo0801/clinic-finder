@@ -18,6 +18,7 @@ export default function App() {
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
   const [markedClinics, setMarkedClinics] = useState([])
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => subscribeSpots(setSpots), [])
 
@@ -30,12 +31,14 @@ export default function App() {
   }, [selectedSpot?.id])
 
   const handleMapClick = (lat, lng) => {
+    setSidebarCollapsed(true)
     setNewCoords({ lat, lng })
     setSelectedSpot(null)
     setPanelMode('new')
   }
 
   const handleSpotSelect = (spot) => {
+    setSidebarCollapsed(true)
     setSelectedSpot(spot)
     setPanelMode('edit')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
@@ -93,19 +96,36 @@ export default function App() {
     setCenterOn({ lat: place.lat, lng: place.lng })
   }
 
+  const handleSidebarHeaderClick = () => {
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      setSidebarCollapsed((collapsed) => !collapsed)
+    }
+  }
+
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="sidebar-header">
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <div
+          className="sidebar-header"
+          onClick={handleSidebarHeaderClick}
+        >
           <div className="logo">
             <span className="logo-icon">🏥</span>
             <div>
               <h1 className="logo-title">개원 입지 분석</h1>
-              <p className="logo-sub">지도를 클릭해 후보지를 추가하세요</p>
+              <p className="logo-sub">
+                {sidebarCollapsed ? '눌러서 후보지 목록 열기' : '지도를 클릭해 후보지를 추가하세요'}
+              </p>
             </div>
           </div>
 
-          <button className="sidebar-action" onClick={handleCompareOpen}>
+          <button
+            className="sidebar-action"
+            onClick={(event) => {
+              event.stopPropagation()
+              handleCompareOpen()
+            }}
+          >
             후보지 비교
           </button>
         </div>
