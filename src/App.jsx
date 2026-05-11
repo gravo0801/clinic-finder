@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import MapView from './components/MapView'
 import SpotList from './components/SpotList'
 import SpotPanel from './components/SpotPanel'
@@ -6,6 +6,7 @@ import NearbyPanel from './components/NearbyPanel'
 import AIAnalysisPanel from './components/AIAnalysisPanel'
 import ChecklistPanel from './components/ChecklistPanel'
 import SearchBar from './components/SearchBar'
+import ComparePanel from './components/ComparePanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics } from './firebase'
 
 export default function App() {
@@ -17,13 +18,14 @@ export default function App() {
   const [nearbyClinics, setNearbyClinics] = useState([])
   const [markedClinics, setMarkedClinics] = useState([])
 
-  useEffect(() => { return subscribeSpots(setSpots) }, [])
+  useEffect(() => subscribeSpots(setSpots), [])
 
-  // 선택된 스팟의 저장된 핀 항상 구독 (지도에 표시 유지)
   useEffect(() => {
-    if (!selectedSpot?.id) { setMarkedClinics([]); return }
-    const unsub = subscribePinnedClinics(selectedSpot.id, setMarkedClinics)
-    return unsub
+    if (!selectedSpot?.id) {
+      setMarkedClinics([])
+      return undefined
+    }
+    return subscribePinnedClinics(selectedSpot.id, setMarkedClinics)
   }, [selectedSpot?.id])
 
   const handleMapClick = (lat, lng) => {
@@ -55,6 +57,11 @@ export default function App() {
     setSelectedSpot(spot)
     setPanelMode('checklist')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
+  }
+
+  const handleCompareOpen = () => {
+    setSelectedSpot(null)
+    setPanelMode('compare')
   }
 
   const handleSaveNew = async (data) => {
@@ -96,7 +103,12 @@ export default function App() {
               <p className="logo-sub">지도를 클릭해 후보지를 추가하세요</p>
             </div>
           </div>
+
+          <button className="sidebar-action" onClick={handleCompareOpen}>
+            후보지 비교
+          </button>
         </div>
+
         <SpotList
           spots={spots}
           selectedId={selectedSpot?.id}
@@ -157,6 +169,10 @@ export default function App() {
 
       {panelMode === 'checklist' && selectedSpot && (
         <ChecklistPanel spot={selectedSpot} onClose={handleClose} />
+      )}
+
+      {panelMode === 'compare' && (
+        <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
       )}
     </div>
   )

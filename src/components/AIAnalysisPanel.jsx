@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { db } from '../firebase'
-import { collection, addDoc, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import { spotSubcollection } from '../firebase'
+import { addDoc, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
 
 function ScoreGauge({ score, grade }) {
   const color = score>=80?'#34C759':score>=60?'#FFCC00':score>=40?'#FF9500':'#FF3B30'
@@ -82,14 +82,24 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
   // 분석 히스토리 구독
   useEffect(() => {
     if (!spot?.id) return
-    const q = query(collection(db, 'spots', spot.id, 'analyses'), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      setHistory(items)
-      // 최신 분석 자동 로드
-      if (items.length > 0 && !result) setResult(items[0].result)
+    let unsub = null
+    let mounted = true
+
+    spotSubcollection(spot.id, 'analyses').then((analysesCol) => {
+      if (!mounted) return
+      const q = query(analysesCol, orderBy('createdAt', 'desc'))
+      unsub = onSnapshot(q, (snap) => {
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        setHistory(items)
+        // 최신 분석 자동 로드
+        if (items.length > 0 && !result) setResult(items[0].result)
+      })
     })
-    return unsub
+
+    return () => {
+      mounted = false
+      if (unsub) unsub()
+    }
   }, [spot?.id])
 
   const handleAnalyze = async () => {
@@ -105,7 +115,7 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
       if (data.error) throw new Error(data.error)
 
       // Firebase에 저장
-      await addDoc(collection(db, 'spots', spot.id, 'analyses'), {
+      await addDoc(await spotSubcollection(spot.id, 'analyses'), {
         result: data.result,
         createdAt: serverTimestamp(),
         competitorCount: nearbyClinics.filter((c) => c.isCompetitor).length,

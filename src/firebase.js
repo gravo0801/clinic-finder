@@ -1,7 +1,21 @@
 import { initializeApp } from 'firebase/app'
 import {
-  getFirestore, collection, addDoc, updateDoc, deleteDoc,
-  doc, onSnapshot, serverTimestamp, orderBy, query, setDoc, getDoc,
+  getAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+} from 'firebase/auth'
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  orderBy,
+  query,
+  setDoc,
 } from 'firebase/firestore'
 
 const firebaseConfig = {
@@ -14,32 +28,93 @@ const firebaseConfig = {
 }
 
 const app = initializeApp(firebaseConfig)
+export const auth = getAuth(app)
 export const db = getFirestore(app)
 
-// ── 후보지(스팟) CRUD ──────────────────────────────────────
-const spotsCol = collection(db, 'spots')
+let authStarted = false
+let currentUserPromise = null
 
-export const addSpot = (spot) =>
-  addDoc(spotsCol, { ...spot, createdAt: serverTimestamp() })
+const ensureAuth = () => {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser)
 
-export const updateSpot = (id, data) =>
-  updateDoc(doc(db, 'spots', id), { ...data, updatedAt: serverTimestamp() })
+  if (!currentUserPromise) {
+    currentUserPromise = new Promise((resolve, reject) => {
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        (user) => {
+          if (user) {
+            unsubscribe()
+            resolve(user)
+          }
+        },
+        reject,
+      )
 
-export const deleteSpot = (id) =>
-  deleteDoc(doc(db, 'spots', id))
+      if (!authStarted) {
+        authStarted = true
+        signInAnonymously(auth).catch(reject)
+      }
+    })
+  }
 
-export const subscribeSpots = (callback) => {
-  const q = query(spotsCol, orderBy('createdAt', 'desc'))
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-  })
+  return currentUserPromise
 }
 
-// ── 저장된 의원 핀 CRUD ────────────────────────────────────
-// spotId별로 핀 목록을 저장 (spots/{spotId}/pins/{pinId})
+const userDoc = async (...segments) => {
+  const user = await ensureAuth()
+  return doc(db, 'users', user.uid, ...segments)
+}
+
+const userCollection = async (...segments) => {
+  const user = await ensureAuth()
+  return collection(db, 'users', user.uid, ...segments)
+}
+
+export const spotSubcollection = (spotId, subcollection) =>
+  userCollection('spots', spotId, subcollection)
+
+export const addSpot = async (spot) => {
+  const spotsCol = await userCollection('spots')
+  return addDoc(spotsCol, { ...spot, createdAt: serverTimestamp() })
+}
+
+export const updateSpot = async (id, data) =>
+  updateDoc(await userDoc('spots', id), { ...data, updatedAt: serverTimestamp() })
+
+export const deleteSpot = async (id) =>
+  deleteDoc(await userDoc('spots', id))
+
+export const subscribeSpots = (callback) => {
+  let unsubscribeSpots = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback([])
+      if (!authStarted) {
+        authStarted = true
+        signInAnonymously(auth).catch((error) => {
+          console.error('Anonymous sign-in failed:', error)
+        })
+      }
+      return
+    }
+
+    if (unsubscribeSpots) unsubscribeSpots()
+    const spotsCol = collection(db, 'users', user.uid, 'spots')
+    const spotsQuery = query(spotsCol, orderBy('createdAt', 'desc'))
+    unsubscribeSpots = onSnapshot(spotsQuery, (snap) => {
+      callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })))
+    })
+  })
+
+  return () => {
+    if (unsubscribeSpots) unsubscribeSpots()
+    unsubscribeAuth()
+  }
+}
 
 export const savePinnedClinic = async (spotId, clinic) => {
-  const pinRef = doc(db, 'spots', spotId, 'pins', clinic.id)
+  const pinRef = await userDoc('spots', spotId, 'pins', clinic.id)
   await setDoc(pinRef, {
     ...clinic,
     savedAt: serverTimestamp(),
@@ -47,12 +122,27 @@ export const savePinnedClinic = async (spotId, clinic) => {
 }
 
 export const deletePinnedClinic = async (spotId, clinicId) => {
-  await deleteDoc(doc(db, 'spots', spotId, 'pins', clinicId))
+  await deleteDoc(await userDoc('spots', spotId, 'pins', clinicId))
 }
 
 export const subscribePinnedClinics = (spotId, callback) => {
-  const pinsCol = collection(db, 'spots', spotId, 'pins')
-  return onSnapshot(pinsCol, (snap) => {
-    callback(snap.docs.map((d) => ({ ...d.data() })))
+  let unsubscribePins = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback([])
+      return
+    }
+
+    if (unsubscribePins) unsubscribePins()
+    const pinsCol = collection(db, 'users', user.uid, 'spots', spotId, 'pins')
+    unsubscribePins = onSnapshot(pinsCol, (snap) => {
+      callback(snap.docs.map((item) => ({ ...item.data() })))
+    })
   })
+
+  return () => {
+    if (unsubscribePins) unsubscribePins()
+    unsubscribeAuth()
+  }
 }
