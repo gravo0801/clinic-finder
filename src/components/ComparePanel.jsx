@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { calculateLocationScore } from '../utils/locationScore'
 
 const RATING_LABEL = ['미평가', '검토필요', '보통', '양호', '우수', '최우수']
+const scoreTone = (value) => (value >= 75 ? 'good' : value >= 45 ? 'mid' : 'low')
 
 const getChecklistStats = (spot) => {
   const total = spot.checklist?.length || 0
@@ -20,6 +22,8 @@ const getReadinessScore = (spot) => {
 
 const SORT_OPTIONS = [
   { key: 'readiness', label: '검토 완성도' },
+  { key: 'locationScore', label: '입지 점수' },
+  { key: 'confidence', label: '신뢰도' },
   { key: 'rating', label: '입지 평점' },
   { key: 'checklist', label: '임장 진행률' },
   { key: 'name', label: '이름' },
@@ -34,15 +38,24 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
         spot,
         checklist: getChecklistStats(spot),
         readiness: getReadinessScore(spot),
+        locationScore: calculateLocationScore(spot),
       }))
       .sort((a, b) => {
         if (sortKey === 'name') return (a.spot.name || '').localeCompare(b.spot.name || '')
         if (sortKey === 'rating') return (b.spot.rating || 0) - (a.spot.rating || 0)
         if (sortKey === 'checklist') return b.checklist.pct - a.checklist.pct
+        if (sortKey === 'locationScore') return b.locationScore.total - a.locationScore.total
+        if (sortKey === 'confidence') return b.locationScore.confidence - a.locationScore.confidence
         return b.readiness - a.readiness
       })
   }, [spots, sortKey])
 
+  const averageLocationScore = rows.length
+    ? Math.round(rows.reduce((sum, row) => sum + row.locationScore.total, 0) / rows.length)
+    : 0
+  const averageConfidence = rows.length
+    ? Math.round(rows.reduce((sum, row) => sum + row.locationScore.confidence, 0) / rows.length)
+    : 0
   const averageReadiness = rows.length
     ? Math.round(rows.reduce((sum, row) => sum + row.readiness, 0) / rows.length)
     : 0
@@ -54,7 +67,7 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
       <div className="panel-header">
         <div>
           <h2 className="panel-title">후보지 비교</h2>
-          <p className="panel-coords">평점, 임장 진행률, 기록 상태를 한눈에 비교합니다</p>
+          <p className="panel-coords">입지 점수, 신뢰도, 임장 진행률, 기록 상태를 한눈에 비교합니다</p>
         </div>
         <button className="close-btn" onClick={onClose}>x</button>
       </div>
@@ -67,6 +80,14 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
         <div className="compare-stat">
           <span className="compare-stat-num">{averageReadiness}</span>
           <span className="compare-stat-label">평균 완성도</span>
+        </div>
+        <div className="compare-stat">
+          <span className="compare-stat-num">{averageLocationScore}</span>
+          <span className="compare-stat-label">평균 입지</span>
+        </div>
+        <div className="compare-stat">
+          <span className="compare-stat-num">{averageConfidence}%</span>
+          <span className="compare-stat-label">평균 신뢰도</span>
         </div>
         <div className="compare-stat">
           <span className="compare-stat-num">{visitedCount}</span>
@@ -105,18 +126,20 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
             <thead>
               <tr>
                 <th>후보지</th>
-                <th>평점</th>
+                <th>입지</th>
+                <th>신뢰도</th>
                 <th>임장</th>
                 <th>완성도</th>
                 <th>기록</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ spot, checklist, readiness }) => (
+              {rows.map(({ spot, checklist, readiness, locationScore }) => (
                 <tr key={spot.id} onClick={() => onSelect(spot)}>
                   <td>
                     <div className="compare-name">{spot.name || '이름 없음'}</div>
                     <div className="compare-address">{spot.address || '주소 미입력'}</div>
+                    <div className="compare-rating-inline">평점 {spot.rating || 0} · {RATING_LABEL[spot.rating || 0]}</div>
                     {spot.tags?.length > 0 && (
                       <div className="compare-tags">
                         {spot.tags.slice(0, 3).map((tag) => (
@@ -126,8 +149,20 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
                     )}
                   </td>
                   <td>
-                    <div className="compare-rating">{spot.rating || 0}</div>
-                    <div className="compare-muted">{RATING_LABEL[spot.rating || 0]}</div>
+                    <span className={`score-pill ${scoreTone(locationScore.total)}`}>{locationScore.total}</span>
+                    <div className="compare-cell-note">
+                      {locationScore.riskFlags[0] || '주요 리스크 없음'}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`confidence-pill ${scoreTone(locationScore.confidence)}`}>
+                      {locationScore.confidence}%
+                    </span>
+                    <div className="compare-cell-note">
+                      {locationScore.missingInputs.length > 0
+                        ? `미입력 ${locationScore.missingInputs.length}개`
+                        : '입력 완료'}
+                    </div>
                   </td>
                   <td>
                     <div className="compare-progress">
