@@ -132,7 +132,7 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({ lat: String(spot.lat), lng: String(spot.lng) })
+      const params = new URLSearchParams({ lat: String(spot.lat), lng: String(spot.lng), t: String(Date.now()) })
       const region = await getBrowserRegionInfo(spot)
       if (region) {
         Object.entries(region).forEach(([key, value]) => params.set(key, value))

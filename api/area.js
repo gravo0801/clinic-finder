@@ -488,6 +488,7 @@ const getApartmentData = async (regionInfo, sources, warnings) => {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET')
+  res.setHeader('Cache-Control', 'no-store, max-age=0')
 
   const lat = Number(req.query.lat)
   const lng = Number(req.query.lng)
