@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { saveCompetitorReport, subscribeCompetitorReport } from '../firebase'
+import { saveCompetitorReport, saveSavedClinic, subscribeCompetitorReport, subscribeSavedClinic } from '../firebase'
 
 const MANUAL_DEFAULTS = {
   reviewCount: '',
@@ -10,6 +10,11 @@ const MANUAL_DEFAULTS = {
   website: '',
   doctorProfileMemo: '',
   legalIssueMemo: '',
+}
+
+const AUTOCHECK_DEFAULTS = {
+  enabled: true,
+  intervalDays: 30,
 }
 
 const SOURCE_LABELS = {
@@ -49,6 +54,30 @@ const formatDate = (timestamp) => {
 }
 
 const mergeManual = (manualReview) => ({ ...MANUAL_DEFAULTS, ...(manualReview || {}) })
+
+const parseSavedTime = (timestamp) => {
+  if (!timestamp) return null
+  if (timestamp.seconds) return new Date(timestamp.seconds * 1000)
+  if (typeof timestamp === 'string') {
+    const date = new Date(timestamp)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  return null
+}
+
+const getAutoCheckStatus = (report, autoCheck) => {
+  if (!autoCheck.enabled) return { label: '자동 체크 꺼짐', due: false, nextText: '수동 업데이트만 사용' }
+  const interval = Number(autoCheck.intervalDays || 30)
+  const base = parseSavedTime(report.lastCheckedAt || report.generatedAt || report.updatedAt || report.savedAt)
+  if (!base) return { label: '업데이트 필요', due: true, nextText: '아직 최신 체크 이력이 없습니다.' }
+  const next = new Date(base.getTime() + interval * 24 * 60 * 60 * 1000)
+  const due = Date.now() >= next.getTime()
+  return {
+    label: due ? '업데이트 필요' : '예약됨',
+    due,
+    nextText: `다음 확인 기준일: ${next.toLocaleDateString('ko-KR')}`,
+  }
+}
 
 function SourceBadges({ sources = {} }) {
   return (
@@ -155,17 +184,27 @@ function OfficialSummary({ data }) {
 export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   const [savedReport, setSavedReport] = useState(null)
   const [manualReview, setManualReview] = useState(MANUAL_DEFAULTS)
+  const [autoCheck, setAutoCheck] = useState(AUTOCHECK_DEFAULTS)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const standalone = !spot?.id
 
   useEffect(() => {
-    if (!spot?.id || !clinic?.id) return undefined
-    return subscribeCompetitorReport(spot.id, clinic.id, (report) => {
-      setSavedReport(report)
-      if (report?.manualReview) setManualReview(mergeManual(report.manualReview))
-    })
-  }, [spot?.id, clinic?.id])
+    if (!clinic?.id) return undefined
+    const unsubscribe = standalone
+      ? subscribeSavedClinic(clinic.id, (report) => {
+        setSavedReport(report)
+        if (report?.manualReview) setManualReview(mergeManual(report.manualReview))
+        if (report?.autoCheck) setAutoCheck({ ...AUTOCHECK_DEFAULTS, ...report.autoCheck })
+      })
+      : subscribeCompetitorReport(spot.id, clinic.id, (report) => {
+        setSavedReport(report)
+        if (report?.manualReview) setManualReview(mergeManual(report.manualReview))
+        if (report?.autoCheck) setAutoCheck({ ...AUTOCHECK_DEFAULTS, ...report.autoCheck })
+      })
+    return unsubscribe
+  }, [spot?.id, clinic?.id, standalone])
 
   const current = savedReport || {}
   const ai = current.aiResult
@@ -174,6 +213,10 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
 
   const setField = (key, value) => {
     setManualReview((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const setAutoCheckField = (key, value) => {
+    setAutoCheck((prev) => ({ ...prev, [key]: value }))
   }
 
   const buildBaseReport = () => ({
@@ -190,14 +233,37 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
       isCompetitor: !!clinic.isCompetitor,
     },
     manualReview,
+    autoCheck,
   })
 
+  const persistReport = async (report) => {
+    if (!clinic?.id) return
+    if (standalone) {
+      await saveSavedClinic({
+        ...clinic,
+        ...report,
+        id: clinic.id,
+        name: clinic.name || report.clinic?.name || '',
+        type: clinic.type || report.clinic?.type || '',
+        dept: clinic.dept || report.clinic?.dept || '',
+        address: clinic.address || report.clinic?.address || '',
+        tel: clinic.tel || report.clinic?.tel || '',
+        lat: clinic.lat ?? report.clinic?.lat ?? null,
+        lng: clinic.lng ?? report.clinic?.lng ?? null,
+        distance: clinic.distance ?? report.clinic?.distance ?? null,
+        markerStyle: clinic.markerStyle || report.markerStyle || { icon: '🏥', color: '#5856D6' },
+      })
+      return
+    }
+    await saveCompetitorReport(spot.id, clinic.id, report)
+  }
+
   const handleSaveManual = async () => {
-    if (!spot?.id || !clinic?.id) return
+    if (!clinic?.id) return
     setSaving(true)
     setError(null)
     try {
-      await saveCompetitorReport(spot.id, clinic.id, {
+      await persistReport({
         ...current,
         ...buildBaseReport(),
       })
@@ -209,18 +275,33 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   }
 
   const handleAnalyze = async () => {
-    if (!spot?.id || !clinic?.id) return
+    if (!clinic?.id) return
     setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/competitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spot, clinic, manualReview }),
+        body: JSON.stringify({
+          spot: spot || {
+            id: 'standalone-clinic-review',
+            name: '저장 의원 단독 조사',
+            address: clinic.address || '',
+            lat: clinic.lat || null,
+            lng: clinic.lng || null,
+          },
+          clinic,
+          manualReview,
+        }),
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || '경쟁 의원 리포트를 생성하지 못했습니다.')
-      await saveCompetitorReport(spot.id, clinic.id, data)
+      await persistReport({
+        ...data,
+        manualReview,
+        autoCheck,
+        lastCheckedAt: data.generatedAt,
+      })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -232,7 +313,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
     <div className="competitor-panel">
       <div className="panel-header">
         <div>
-          <h2 className="panel-title">경쟁 의원 리포트</h2>
+          <h2 className="panel-title">{standalone ? '저장 의원 리포트' : '경쟁 의원 리포트'}</h2>
           <p className="panel-coords">{clinic?.name} · {clinic?.distance ? `${clinic.distance}m` : '거리 미확인'}</p>
         </div>
         <button className="close-btn" onClick={onClose}>✕</button>
@@ -283,6 +364,45 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
 
         <div className="competitor-section">
           <div className="competitor-section-title">
+            <span>최신 정보 체크</span>
+            <small>{getAutoCheckStatus(current, autoCheck).label}</small>
+          </div>
+          <div className={`autocheck-card ${getAutoCheckStatus(current, autoCheck).due ? 'due' : ''}`}>
+            <div>
+              <strong>{getAutoCheckStatus(current, autoCheck).nextText}</strong>
+              <p>현재 1차 구현은 앱을 열 때 업데이트 필요 여부를 표시하고, 버튼을 눌러 최신 공공/검색 정보를 다시 수집하는 방식입니다.</p>
+            </div>
+            <div className="autocheck-controls">
+              <label>
+                <span>상태</span>
+                <select
+                  className="business-input"
+                  value={autoCheck.enabled ? 'on' : 'off'}
+                  onChange={(event) => setAutoCheckField('enabled', event.target.value === 'on')}
+                >
+                  <option value="on">켜기</option>
+                  <option value="off">끄기</option>
+                </select>
+              </label>
+              <label>
+                <span>주기</span>
+                <select
+                  className="business-input"
+                  value={autoCheck.intervalDays}
+                  onChange={(event) => setAutoCheckField('intervalDays', Number(event.target.value))}
+                >
+                  <option value={7}>7일</option>
+                  <option value={14}>14일</option>
+                  <option value={30}>30일</option>
+                  <option value={60}>60일</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="competitor-section">
+          <div className="competitor-section-title">
             <span>평판 단서 수동 입력</span>
             <small>리뷰 본문 자동 수집 제외</small>
           </div>
@@ -325,7 +445,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
               {saving ? '저장 중...' : '수동 입력 저장'}
             </button>
             <button className="btn-analyze" onClick={handleAnalyze} disabled={loading || saving}>
-              {loading ? '리포트 생성 중...' : ai ? '경쟁 리포트 재생성' : '경쟁 리포트 생성'}
+              {loading ? '리포트 생성 중...' : ai ? '최신 정보 업데이트' : 'AI 리포트 생성'}
             </button>
           </div>
           {error && <div className="ai-error"><p>{error}</p></div>}

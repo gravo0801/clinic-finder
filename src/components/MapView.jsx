@@ -41,12 +41,14 @@ function makeClinicMarkerHtml(icon, color, name) {
 export default function MapView({
   spots, centerOn, selectedSpot, newSpotCoords,
   markedClinics = [],
-  onMapClick, onSpotClick
+  savedClinics = [],
+  onMapClick, onSpotClick, onClinicClick
 }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef({})
   const clinicMarkersRef = useRef({})
+  const savedClinicMarkersRef = useRef({})
   const tempMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
 
@@ -130,9 +132,39 @@ export default function MapView({
         title: clinic.name,
         zIndex: 50,
       })
+      window.naver.maps.Event.addListener(marker, 'click', (e) => {
+        e.domEvent?.stopPropagation?.()
+        onClinicClick?.(clinic, { source: 'marked' })
+      })
       clinicMarkersRef.current[clinic.id] = marker
     })
-  }, [markedClinics, mapReady])
+  }, [markedClinics, mapReady, onClinicClick])
+
+  // 저장한 의원 마커 (전역)
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.naver?.maps) return
+
+    Object.values(savedClinicMarkersRef.current).forEach((m) => m.setMap(null))
+    savedClinicMarkersRef.current = {}
+
+    savedClinics.forEach((clinic) => {
+      if (!clinic.lat || !clinic.lng) return
+      const { icon = '🏥', color = '#5856D6' } = clinic.markerStyle || {}
+      const html = makeClinicMarkerHtml(icon, color, clinic.name)
+      const marker = new window.naver.maps.Marker({
+        position: new window.naver.maps.LatLng(clinic.lat, clinic.lng),
+        map: mapInstanceRef.current,
+        icon: { content: html, anchor: new window.naver.maps.Point(16, 16) },
+        title: clinic.name,
+        zIndex: 65,
+      })
+      window.naver.maps.Event.addListener(marker, 'click', (e) => {
+        e.domEvent?.stopPropagation?.()
+        onClinicClick?.(clinic, { source: 'saved' })
+      })
+      savedClinicMarkersRef.current[clinic.id] = marker
+    })
+  }, [savedClinics, mapReady, onClinicClick])
 
   // 임시 마커
   useEffect(() => {

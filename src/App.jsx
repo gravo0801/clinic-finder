@@ -10,7 +10,8 @@ import ComparePanel from './components/ComparePanel'
 import MigrationBanner from './components/MigrationBanner'
 import AreaAnalysisPanel from './components/AreaAnalysisPanel'
 import CompetitorReportPanel from './components/CompetitorReportPanel'
-import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics } from './firebase'
+import ClinicSearchPanel from './components/ClinicSearchPanel'
+import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics, subscribeSavedClinics } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
@@ -20,10 +21,12 @@ export default function App() {
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
   const [markedClinics, setMarkedClinics] = useState([])
+  const [savedClinics, setSavedClinics] = useState([])
   const [selectedClinic, setSelectedClinic] = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => subscribeSpots(setSpots), [])
+  useEffect(() => subscribeSavedClinics(setSavedClinics), [])
 
   useEffect(() => {
     if (!selectedSpot?.id) {
@@ -78,11 +81,32 @@ export default function App() {
     setPanelMode('compare')
   }
 
+  const handleClinicSearchOpen = () => {
+    setSelectedSpot(null)
+    setSelectedClinic(null)
+    setPanelMode('clinicSearch')
+  }
+
   const handleCompetitorOpen = (spot, clinic) => {
     setSelectedSpot(spot)
     setSelectedClinic(clinic)
     setPanelMode('competitor')
     setCenterOn({ lat: clinic.lat || spot.lat, lng: clinic.lng || spot.lng })
+  }
+
+  const handleSavedClinicOpen = (clinic) => {
+    setSelectedSpot(null)
+    setSelectedClinic(clinic)
+    setPanelMode('clinicReport')
+    if (clinic.lat && clinic.lng) setCenterOn({ lat: clinic.lat, lng: clinic.lng })
+  }
+
+  const handleClinicMarkerClick = (clinic, meta = {}) => {
+    if (meta.source === 'marked' && selectedSpot?.id) {
+      handleCompetitorOpen(selectedSpot, clinic)
+      return
+    }
+    handleSavedClinicOpen(clinic)
   }
 
   const handleSaveNew = async (data) => {
@@ -137,15 +161,26 @@ export default function App() {
             </div>
           </div>
 
-          <button
-            className="sidebar-action"
-            onClick={(event) => {
-              event.stopPropagation()
-              handleCompareOpen()
-            }}
-          >
-            후보지 비교
-          </button>
+          <div className="sidebar-actions">
+            <button
+              className="sidebar-action"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleClinicSearchOpen()
+              }}
+            >
+              의원 검색
+            </button>
+            <button
+              className="sidebar-action"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleCompareOpen()
+              }}
+            >
+              후보지 비교
+            </button>
+          </div>
         </div>
 
         <SpotList
@@ -169,8 +204,10 @@ export default function App() {
           selectedSpot={selectedSpot}
           newSpotCoords={newCoords}
           markedClinics={markedClinics}
+          savedClinics={savedClinics}
           onMapClick={handleMapClick}
           onSpotClick={handleSpotSelect}
+          onClinicClick={handleClinicMarkerClick}
         />
         {spots.length === 0 && (
           <div className="map-hint">
@@ -221,11 +258,29 @@ export default function App() {
         <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
       )}
 
+      {panelMode === 'clinicSearch' && (
+        <ClinicSearchPanel
+          savedClinics={savedClinics}
+          centerOn={centerOn}
+          onClose={handleClose}
+          onOpenClinic={handleSavedClinicOpen}
+          onCenterClinic={(clinic) => clinic.lat && clinic.lng && setCenterOn({ lat: clinic.lat, lng: clinic.lng })}
+        />
+      )}
+
       {panelMode === 'competitor' && selectedSpot && selectedClinic && (
         <CompetitorReportPanel
           spot={selectedSpot}
           clinic={selectedClinic}
           onClose={handleClose}
+        />
+      )}
+
+      {panelMode === 'clinicReport' && selectedClinic && (
+        <CompetitorReportPanel
+          clinic={selectedClinic}
+          onClose={handleClose}
+          standalone
         />
       )}
     </div>

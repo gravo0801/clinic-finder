@@ -184,6 +184,68 @@ export const subscribeCompetitorReport = (spotId, clinicId, callback) => {
   }
 }
 
+export const saveSavedClinic = async (clinic) => {
+  const clinicRef = await userDoc('savedClinics', clinic.id)
+  const existing = await getDoc(clinicRef)
+  const savedAt = existing.exists() && existing.data().savedAt
+    ? existing.data().savedAt
+    : serverTimestamp()
+  await setDoc(clinicRef, {
+    ...clinic,
+    savedAt,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+}
+
+export const deleteSavedClinic = async (clinicId) => {
+  await deleteDoc(await userDoc('savedClinics', clinicId))
+}
+
+export const subscribeSavedClinics = (callback) => {
+  let unsubscribeClinics = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback([])
+      return
+    }
+
+    if (unsubscribeClinics) unsubscribeClinics()
+    const clinicsCol = collection(db, 'users', user.uid, 'savedClinics')
+    const clinicsQuery = query(clinicsCol, orderBy('savedAt', 'desc'))
+    unsubscribeClinics = onSnapshot(clinicsQuery, (snap) => {
+      callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })))
+    })
+  })
+
+  return () => {
+    if (unsubscribeClinics) unsubscribeClinics()
+    unsubscribeAuth()
+  }
+}
+
+export const subscribeSavedClinic = (clinicId, callback) => {
+  let unsubscribeClinic = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback(null)
+      return
+    }
+
+    if (unsubscribeClinic) unsubscribeClinic()
+    const clinicRef = doc(db, 'users', user.uid, 'savedClinics', clinicId)
+    unsubscribeClinic = onSnapshot(clinicRef, (snap) => {
+      callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+    })
+  })
+
+  return () => {
+    if (unsubscribeClinic) unsubscribeClinic()
+    unsubscribeAuth()
+  }
+}
+
 const copySubcollection = async (oldSpotId, newSpotId, subcollectionName) => {
   const sourceSnap = await getDocs(collection(db, 'spots', oldSpotId, subcollectionName))
   await Promise.all(sourceSnap.docs.map(async (sourceDoc) => {

@@ -175,6 +175,7 @@ const getRecentMonths = (count) => {
 
 const fetchOfficialData = async (clinic) => {
   const serviceKey = process.env.PUBLIC_DATA_API_KEY
+  const hiraId = clinic.hiraId || (String(clinic.id || '').startsWith('naver_') ? '' : clinic.id)
   const sources = {
     detail: emptySource('pending'),
     departments: emptySource('pending'),
@@ -201,14 +202,14 @@ const fetchOfficialData = async (clinic) => {
     falseClaim: null,
   }
 
-  if (!serviceKey || !clinic.id) {
+  if (!serviceKey || !hiraId) {
     Object.keys(sources).forEach((key) => {
-      sources[key] = emptySource(!serviceKey ? 'missing_key' : 'blocked', !serviceKey ? 'PUBLIC_DATA_API_KEY 없음' : '요양기호 없음')
+      sources[key] = emptySource(!serviceKey ? 'missing_key' : 'blocked', !serviceKey ? 'PUBLIC_DATA_API_KEY 없음' : 'HIRA 요양기호 없음')
     })
     return { official, sources }
   }
 
-  const common = { ykiho: clinic.id, pageNo: '1', numOfRows: '20', _type: 'json' }
+  const common = { ykiho: hiraId, pageNo: '1', numOfRows: '20', _type: 'json' }
   const [
     detail,
     departments,
@@ -227,7 +228,7 @@ const fetchOfficialData = async (clinic) => {
     runOpenDataSource(sources, 'personnel', '기타인력', () => callOpenData(serviceKey, 'MadmDtlInfoService2.7/getEtcHstInfo2.7', common)),
     runOpenDataSource(sources, 'specialCare', '특수진료', () => callOpenData(serviceKey, 'MadmDtlInfoService2.7/getSpclDiagInfo2.7', common)),
     runOpenDataSource(sources, 'topDiseases', '상위 질병', () => callOpenData(serviceKey, 'hospDiagInfoService1/getClinicTop5List1', {
-      ykiho: clinic.id,
+      ykiho: hiraId,
       pageNo: '1',
       numOfRows: '1',
     })),
