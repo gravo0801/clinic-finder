@@ -33,7 +33,7 @@ function DistanceBadge({ distance }) {
   )
 }
 
-export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedClinicsChange }) {
+export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedClinicsChange, onCompetitorResearch }) {
   const [radius, setRadius] = useState(1000)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -146,7 +146,7 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
       )}
 
       <div className="competitor-guide">
-        🎯 경쟁 기준: 내과 · 가정의학과 · 365의원 &nbsp;|&nbsp; 📌 클릭 → 지도에 영구 저장
+        🎯 경쟁 기준: 내과 · 가정의학과 · 365의원 &nbsp;|&nbsp; 경쟁 조사 → 공개 데이터 기반 리포트
       </div>
 
       {/* 반경 */}
@@ -252,6 +252,14 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
               </div>
               <p className="clinic-address">{item.address}</p>
               {item.tel && <p className="clinic-tel">📞 {item.tel}</p>}
+              <div className="clinic-actions">
+                <button
+                  className="clinic-research-btn"
+                  onClick={() => onCompetitorResearch?.(item)}
+                >
+                  경쟁 조사
+                </button>
+              </div>
             </div>
           )
         })}

@@ -9,6 +9,7 @@ import SearchBar from './components/SearchBar'
 import ComparePanel from './components/ComparePanel'
 import MigrationBanner from './components/MigrationBanner'
 import AreaAnalysisPanel from './components/AreaAnalysisPanel'
+import CompetitorReportPanel from './components/CompetitorReportPanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics } from './firebase'
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
   const [markedClinics, setMarkedClinics] = useState([])
+  const [selectedClinic, setSelectedClinic] = useState(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => subscribeSpots(setSpots), [])
@@ -72,7 +74,15 @@ export default function App() {
 
   const handleCompareOpen = () => {
     setSelectedSpot(null)
+    setSelectedClinic(null)
     setPanelMode('compare')
+  }
+
+  const handleCompetitorOpen = (spot, clinic) => {
+    setSelectedSpot(spot)
+    setSelectedClinic(clinic)
+    setPanelMode('competitor')
+    setCenterOn({ lat: clinic.lat || spot.lat, lng: clinic.lng || spot.lng })
   }
 
   const handleSaveNew = async (data) => {
@@ -96,6 +106,7 @@ export default function App() {
   const handleClose = () => {
     setPanelMode(null)
     setSelectedSpot(null)
+    setSelectedClinic(null)
     setNewCoords(null)
   }
 
@@ -190,6 +201,7 @@ export default function App() {
           onClose={handleClose}
           onClinicsLoaded={setNearbyClinics}
           onMarkedClinicsChange={setMarkedClinics}
+          onCompetitorResearch={(clinic) => handleCompetitorOpen(selectedSpot, clinic)}
         />
       )}
 
@@ -207,6 +219,14 @@ export default function App() {
 
       {panelMode === 'compare' && (
         <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
+      )}
+
+      {panelMode === 'competitor' && selectedSpot && selectedClinic && (
+        <CompetitorReportPanel
+          spot={selectedSpot}
+          clinic={selectedClinic}
+          onClose={handleClose}
+        />
       )}
     </div>
   )

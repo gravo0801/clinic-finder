@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
   setDoc,
+  getDoc,
   getDocs,
 } from 'firebase/firestore'
 
@@ -148,6 +149,41 @@ export const subscribePinnedClinics = (spotId, callback) => {
   }
 }
 
+export const saveCompetitorReport = async (spotId, clinicId, report) => {
+  const reportRef = await userDoc('spots', spotId, 'competitors', clinicId)
+  const existing = await getDoc(reportRef)
+  const savedAt = existing.exists() && existing.data().savedAt
+    ? existing.data().savedAt
+    : serverTimestamp()
+  await setDoc(reportRef, {
+    ...report,
+    savedAt,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+}
+
+export const subscribeCompetitorReport = (spotId, clinicId, callback) => {
+  let unsubscribeReport = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback(null)
+      return
+    }
+
+    if (unsubscribeReport) unsubscribeReport()
+    const reportRef = doc(db, 'users', user.uid, 'spots', spotId, 'competitors', clinicId)
+    unsubscribeReport = onSnapshot(reportRef, (snap) => {
+      callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+    })
+  })
+
+  return () => {
+    if (unsubscribeReport) unsubscribeReport()
+    unsubscribeAuth()
+  }
+}
+
 const copySubcollection = async (oldSpotId, newSpotId, subcollectionName) => {
   const sourceSnap = await getDocs(collection(db, 'spots', oldSpotId, subcollectionName))
   await Promise.all(sourceSnap.docs.map(async (sourceDoc) => {
@@ -170,6 +206,7 @@ export const migrateLegacySpots = async () => {
     await setDoc(await userDoc('spots', legacySpot.id), spotData)
     await copySubcollection(legacySpot.id, legacySpot.id, 'pins')
     await copySubcollection(legacySpot.id, legacySpot.id, 'analyses')
+    await copySubcollection(legacySpot.id, legacySpot.id, 'competitors')
   }))
 
   return legacySnap.size
