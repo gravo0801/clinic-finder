@@ -64,6 +64,7 @@ const fetchJson = async (url, options) => {
 }
 
 const itemsFrom = (payload) => {
+  if (payload?.rawText || (typeof payload?.status === 'number' && payload.status >= 400)) return []
   const body = payload?.response?.body || payload?.body || payload
   const items = body?.items?.item || body?.items || body?.item || body
   if (!items) return []
