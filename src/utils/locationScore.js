@@ -16,6 +16,7 @@ const REQUIRED_INPUTS = [
 const BUSINESS_DEFAULTS = {
   deposit: null,
   monthlyRent: null,
+  expectedMonthlyRevenue: null,
   maintenanceFee: null,
   areaPyeong: null,
   floor: '',
@@ -105,6 +106,7 @@ export const normalizeBusinessFields = (business = {}) => {
   return {
     deposit: toNumber(merged.deposit),
     monthlyRent: toNumber(merged.monthlyRent),
+    expectedMonthlyRevenue: toNumber(merged.expectedMonthlyRevenue),
     maintenanceFee: toNumber(merged.maintenanceFee),
     areaPyeong: toNumber(merged.areaPyeong),
     floor: toNumber(merged.floor),
@@ -198,7 +200,7 @@ export const calculateLocationScore = (spot = {}) => {
     (endoscopyPossible ? 4 : 0)
       + (xrayPossible ? 2 : 0)
       + (business.pharmacyDistanceMemo ? 2 : 0)
-      + (hasTag(spot, '대형병원인근') ? 2 : 0),
+      + (hasTag(spot, '입지우수') ? 2 : 0),
     0,
     10,
   )
@@ -217,6 +219,11 @@ export const calculateLocationScore = (spot = {}) => {
   const riskFlags = []
   if (business.parkingCount === 0) riskFlags.push('주차 0대: 수면내시경/보호자 동선 리스크')
   if (business.monthlyRent !== null && business.monthlyRent > 1000) riskFlags.push('월세 1,000만원 초과: 손익분기 부담')
+  if (business.monthlyRent !== null && business.expectedMonthlyRevenue > 0) {
+    const rentRatio = Math.round((business.monthlyRent / business.expectedMonthlyRevenue) * 100)
+    if (rentRatio > 20) riskFlags.push(`월세/예상매출 ${rentRatio}%: 손익분기 매우 부담`)
+    else if (rentRatio > 15) riskFlags.push(`월세/예상매출 ${rentRatio}%: 임대료 부담`)
+  }
   if (floorNumber !== null && floorNumber >= 5 && hasElevator === false) riskFlags.push('5층 이상 + 엘리베이터 없음')
   if (endoscopyPossible === false) riskFlags.push('내시경실 구성이 불가능한 후보지')
   if (business.checkupEndoscopyCompetitors !== null && business.checkupEndoscopyCompetitors >= 5) riskFlags.push('검진/내시경 경쟁 과다')

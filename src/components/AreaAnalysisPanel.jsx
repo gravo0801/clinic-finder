@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { updateSpot } from '../firebase'
 
 const SOURCE_LABELS = {
   region: '행정구역',
@@ -22,6 +23,34 @@ const parseNumber = (value) => {
   const parsed = Number(String(value).replace(/[^\d.-]/g, ''))
   return Number.isFinite(parsed) ? parsed : 0
 }
+
+const compactObject = (object, keys) => {
+  if (!object) return null
+  const result = {}
+  keys.forEach((key) => {
+    if (object[key] !== undefined && object[key] !== null && object[key] !== '') {
+      result[key] = object[key]
+    }
+  })
+  return Object.keys(result).length > 0 ? result : null
+}
+
+const createAreaSnapshot = (data) => ({
+  fetchedAt: new Date().toISOString(),
+  regionInfo: compactObject(data.regionInfo, ['provider', 'sido', 'sigungu', 'dong', 'admCode', 'lawdCd']) || null,
+  sources: data.sources || {},
+  warnings: (data.warnings || []).slice(0, 5),
+  population: compactObject(data.population, [
+    'total', 'male', 'female', 'age20', 'age30', 'age40', 'age50', 'age60', 'avgAge', 'density', 'year', 'source',
+  ]),
+  commercialArea: compactObject(data.commercialArea, ['name', 'code']),
+  commercialSale: compactObject(data.commercialSale, ['totalSale', 'medicalSale', 'storeCount', 'perStoreSale']),
+  floatingPop: compactObject(data.floatingPop, ['total', 'am', 'pm']),
+  residentPopulation: compactObject(data.residentPopulation, ['total', 'household', 'male', 'female', 'source']),
+  aptPrice: compactObject(data.aptPrice, ['avg', 'max', 'min', 'count', 'dealYm', 'unit', 'note']),
+  commercialPeriod: data.commercialPeriod || null,
+  residentPeriod: data.residentPeriod || null,
+})
 
 const moneyHundredMillion = (value) => `${(parseNumber(value) / 100000000).toFixed(1)}억`
 const tenThousand = (value) => `${(parseNumber(value) / 10000).toFixed(1)}만`
@@ -123,9 +152,16 @@ function getBrowserRegionInfo(spot) {
 }
 
 export default function AreaAnalysisPanel({ spot, onClose }) {
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(spot?.areaSnapshot || null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [saveState, setSaveState] = useState(spot?.areaSnapshot?.fetchedAt ? 'saved' : 'idle')
+
+  useEffect(() => {
+    setData(spot?.areaSnapshot || null)
+    setSaveState(spot?.areaSnapshot?.fetchedAt ? 'saved' : 'idle')
+    setError(null)
+  }, [spot?.id, spot?.areaSnapshot?.fetchedAt])
 
   const fetchAnalysis = async () => {
     if (!spot?.lat || !spot?.lng) return
@@ -141,9 +177,17 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
       const res = await fetch(`/api/area?${params.toString()}`)
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error || '지역 분석 데이터를 불러오지 못했습니다.')
-      setData(json)
+      const snapshot = createAreaSnapshot(json)
+      setData({ ...json, fetchedAt: snapshot.fetchedAt })
+      setSaveState('idle')
+      if (spot?.id) {
+        setSaveState('saving')
+        await updateSpot(spot.id, { areaSnapshot: snapshot })
+        setSaveState('saved')
+      }
     } catch (err) {
       setError(err.message)
+      setSaveState('idle')
     } finally {
       setLoading(false)
     }
@@ -217,6 +261,13 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
             {region?.dong && (
               <div className="area-region-badge">
                 {region.sido} {region.sigungu} {region.dong}
+              </div>
+            )}
+            {data.fetchedAt && (
+              <div className={`area-save-state ${saveState}`}>
+                {saveState === 'saving'
+                  ? '후보지에 저장 중...'
+                  : `후보지에 저장됨 · ${new Date(data.fetchedAt).toLocaleString('ko-KR')}`}
               </div>
             )}
 

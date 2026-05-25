@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { calculateLocationScore, normalizeBusinessFields } from '../utils/locationScore'
+import { calculateAvoidanceScore } from '../utils/avoidanceScore'
 
 const PRESET_TAGS = [
   '주거지역', '상업지역', '역세권', '학교인근',
@@ -12,6 +13,7 @@ const RATING_COLOR = ['', '#007AFF', '#34C759', '#FFCC00', '#FF9500', '#FF3B30']
 const BUSINESS_FORM_DEFAULTS = {
   deposit: '',
   monthlyRent: '',
+  expectedMonthlyRevenue: '',
   maintenanceFee: '',
   areaPyeong: '',
   floor: '',
@@ -43,6 +45,7 @@ const getBusinessForm = (business = {}) => ({
   ...business,
   deposit: toFormValue(business.deposit),
   monthlyRent: toFormValue(business.monthlyRent),
+  expectedMonthlyRevenue: toFormValue(business.expectedMonthlyRevenue),
   maintenanceFee: toFormValue(business.maintenanceFee),
   areaPyeong: toFormValue(business.areaPyeong),
   floor: toFormValue(business.floor),
@@ -119,11 +122,58 @@ function LocationScoreSummary({ score, compact = false }) {
   )
 }
 
+function AvoidanceRiskSummary({ avoidance, compact = false }) {
+  const rules = avoidance.rules.slice(0, compact ? 2 : 4)
+  const missing = avoidance.missingInputs.slice(0, compact ? 2 : 4)
+
+  return (
+    <div className={`avoidance-card ${avoidance.level.key} ${compact ? 'compact' : ''}`}>
+      <div className="avoidance-head">
+        <div>
+          <div className="avoidance-label">회피 리스크</div>
+          <div className="avoidance-sub">나쁜 입지 감점 모델</div>
+        </div>
+        <div className="avoidance-score">
+          <span className={`avoidance-level ${avoidance.level.key}`}>{avoidance.level.label}</span>
+          <span>감점 -{avoidance.penalty}</span>
+        </div>
+      </div>
+
+      <div className="avoidance-final">
+        <span>감점 후 입지 점수</span>
+        <b>{avoidance.adjustedScore}</b>
+        <small>기존 {avoidance.baseScore}</small>
+      </div>
+
+      {rules.length > 0 ? (
+        <div className="avoidance-rule-list">
+          {rules.map((rule) => (
+            <div className="avoidance-rule" key={`${rule.key}-${rule.label}`}>
+              <span>-{rule.penalty}</span>
+              <p><b>{rule.label}</b>{rule.detail ? ` · ${rule.detail}` : ''}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="avoidance-empty">큰 회피 리스크가 아직 잡히지 않았습니다.</div>
+      )}
+
+      {missing.length > 0 && (
+        <div className="avoidance-missing">
+          미확인: {missing.join(', ')}
+          {avoidance.missingInputs.length > missing.length ? ` 외 ${avoidance.missingInputs.length - missing.length}개` : ''}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onArea, onClose }) {
   const r = spot.rating || 0
   const checkDone = spot.checklist?.filter((c) => c.done).length || 0
   const checkTotal = spot.checklist?.length || 0
   const locationScore = calculateLocationScore(spot)
+  const avoidanceScore = calculateAvoidanceScore(spot)
   return (
     <div className="spot-panel view-panel">
       <div className="panel-header">
@@ -150,6 +200,7 @@ function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onArea, onClose }
           </div>
         )}
         <LocationScoreSummary score={locationScore} />
+        <AvoidanceRiskSummary avoidance={avoidanceScore} />
         {spot.memo && (
           <div className="view-section view-section-memo">
             <div className="view-section-title">메모</div>
@@ -236,7 +287,9 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
 
   const displayRating = hover || rating
   const isNew = mode === 'new'
-  const liveScore = calculateLocationScore({ ...spot, name, address, rating, tags, memo, business })
+  const liveSpot = { ...spot, name, address, rating, tags, memo, business }
+  const liveScore = calculateLocationScore(liveSpot)
+  const liveAvoidance = calculateAvoidanceScore(liveSpot)
 
   return (
     <div className="spot-panel">
@@ -303,6 +356,17 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
                 min="0"
                 value={business.monthlyRent}
                 onChange={(e) => setBusinessField('monthlyRent', e.target.value)}
+                placeholder="만원"
+              />
+            </label>
+            <label className="business-field">
+              <span>예상 월매출</span>
+              <input
+                className="business-input"
+                type="number"
+                min="0"
+                value={business.expectedMonthlyRevenue}
+                onChange={(e) => setBusinessField('expectedMonthlyRevenue', e.target.value)}
                 placeholder="만원"
               />
             </label>
@@ -496,6 +560,7 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
             </label>
           </div>
           <LocationScoreSummary score={liveScore} compact />
+          <AvoidanceRiskSummary avoidance={liveAvoidance} compact />
         </div>
         <div className="field">
           <label className="field-label">메모</label>

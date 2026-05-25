@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { calculateLocationScore } from '../utils/locationScore'
+import { calculateAvoidanceScore } from '../utils/avoidanceScore'
 
 const RATING_LABEL = ['미평가', '검토필요', '보통', '양호', '우수', '최우수']
 const scoreTone = (value) => (value >= 75 ? 'good' : value >= 45 ? 'mid' : 'low')
@@ -22,7 +23,9 @@ const getReadinessScore = (spot) => {
 
 const SORT_OPTIONS = [
   { key: 'readiness', label: '검토 완성도' },
-  { key: 'locationScore', label: '입지 점수' },
+  { key: 'adjustedScore', label: '감점 후 점수' },
+  { key: 'avoidancePenalty', label: '회피 리스크' },
+  { key: 'locationScore', label: '기존 입지' },
   { key: 'confidence', label: '신뢰도' },
   { key: 'rating', label: '입지 평점' },
   { key: 'checklist', label: '임장 진행률' },
@@ -39,19 +42,25 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
         checklist: getChecklistStats(spot),
         readiness: getReadinessScore(spot),
         locationScore: calculateLocationScore(spot),
+        avoidance: calculateAvoidanceScore(spot),
       }))
       .sort((a, b) => {
         if (sortKey === 'name') return (a.spot.name || '').localeCompare(b.spot.name || '')
         if (sortKey === 'rating') return (b.spot.rating || 0) - (a.spot.rating || 0)
         if (sortKey === 'checklist') return b.checklist.pct - a.checklist.pct
         if (sortKey === 'locationScore') return b.locationScore.total - a.locationScore.total
+        if (sortKey === 'adjustedScore') return b.avoidance.adjustedScore - a.avoidance.adjustedScore
+        if (sortKey === 'avoidancePenalty') return b.avoidance.penalty - a.avoidance.penalty
         if (sortKey === 'confidence') return b.locationScore.confidence - a.locationScore.confidence
         return b.readiness - a.readiness
       })
   }, [spots, sortKey])
 
   const averageLocationScore = rows.length
-    ? Math.round(rows.reduce((sum, row) => sum + row.locationScore.total, 0) / rows.length)
+    ? Math.round(rows.reduce((sum, row) => sum + row.avoidance.adjustedScore, 0) / rows.length)
+    : 0
+  const averagePenalty = rows.length
+    ? Math.round(rows.reduce((sum, row) => sum + row.avoidance.penalty, 0) / rows.length)
     : 0
   const averageConfidence = rows.length
     ? Math.round(rows.reduce((sum, row) => sum + row.locationScore.confidence, 0) / rows.length)
@@ -83,7 +92,11 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
         </div>
         <div className="compare-stat">
           <span className="compare-stat-num">{averageLocationScore}</span>
-          <span className="compare-stat-label">평균 입지</span>
+          <span className="compare-stat-label">평균 최종</span>
+        </div>
+        <div className="compare-stat">
+          <span className="compare-stat-num">-{averagePenalty}</span>
+          <span className="compare-stat-label">평균 감점</span>
         </div>
         <div className="compare-stat">
           <span className="compare-stat-num">{averageConfidence}%</span>
@@ -126,7 +139,8 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
             <thead>
               <tr>
                 <th>후보지</th>
-                <th>입지</th>
+                <th>최종</th>
+                <th>회피</th>
                 <th>신뢰도</th>
                 <th>임장</th>
                 <th>완성도</th>
@@ -134,7 +148,7 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ spot, checklist, readiness, locationScore }) => (
+              {rows.map(({ spot, checklist, readiness, locationScore, avoidance }) => (
                 <tr key={spot.id} onClick={() => onSelect(spot)}>
                   <td>
                     <div className="compare-name">{spot.name || '이름 없음'}</div>
@@ -149,9 +163,15 @@ export default function ComparePanel({ spots, onClose, onSelect }) {
                     )}
                   </td>
                   <td>
-                    <span className={`score-pill ${scoreTone(locationScore.total)}`}>{locationScore.total}</span>
+                    <span className={`score-pill ${scoreTone(avoidance.adjustedScore)}`}>{avoidance.adjustedScore}</span>
                     <div className="compare-cell-note">
-                      {locationScore.riskFlags[0] || '주요 리스크 없음'}
+                      기존 {locationScore.total} · 감점 -{avoidance.penalty}
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`avoidance-pill ${avoidance.level.key}`}>{avoidance.level.label}</span>
+                    <div className="compare-cell-note">
+                      {avoidance.rules[0]?.label || '큰 리스크 없음'}
                     </div>
                   </td>
                   <td>
