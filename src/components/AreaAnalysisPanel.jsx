@@ -75,6 +75,53 @@ function SourceBadges({ sources = {} }) {
   )
 }
 
+const pickRegionName = (result, key) => result?.region?.[key]?.name || ''
+
+function getBrowserRegionInfo(spot) {
+  const service = window.naver?.maps?.Service
+  if (!service?.reverseGeocode || !spot?.lat || !spot?.lng) return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    const coords = new window.naver.maps.LatLng(spot.lat, spot.lng)
+    const orders = [
+      service.OrderType?.ADM_CODE || 'admcode',
+      service.OrderType?.LEGAL_CODE || 'legalcode',
+    ].join(',')
+
+    service.reverseGeocode({ coords, orders }, (status, response) => {
+      if (status !== window.naver.maps.Service.Status.OK) {
+        resolve(null)
+        return
+      }
+
+      const results = response?.v2?.results || []
+      const adm = results.find((item) => item.name === 'admcode')
+      const legal = results.find((item) => item.name === 'legalcode')
+      const base = adm || legal
+      const admCode = adm?.code?.id || adm?.code?.mappingId || ''
+      const admMapping = adm?.code?.mappingId || ''
+      const lawCode = legal?.code?.id || ''
+      const lawdCd = lawCode.slice(0, 5) || admCode.slice(0, 5)
+
+      if (!admCode && !lawdCd) {
+        resolve(null)
+        return
+      }
+
+      resolve({
+        sido: pickRegionName(base, 'area1'),
+        sigungu: pickRegionName(base, 'area2'),
+        dong: pickRegionName(base, 'area3'),
+        admCode,
+        lawdCd,
+        sgisCandidates: [admCode, admMapping, admCode.slice(0, 7), admMapping.slice(0, 7), lawdCd]
+          .filter(Boolean)
+          .join(','),
+      })
+    })
+  })
+}
+
 export default function AreaAnalysisPanel({ spot, onClose }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -85,7 +132,13 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/area?lat=${spot.lat}&lng=${spot.lng}`)
+      const params = new URLSearchParams({ lat: String(spot.lat), lng: String(spot.lng) })
+      const region = await getBrowserRegionInfo(spot)
+      if (region) {
+        Object.entries(region).forEach(([key, value]) => params.set(key, value))
+      }
+
+      const res = await fetch(`/api/area?${params.toString()}`)
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error || '지역 분석 데이터를 불러오지 못했습니다.')
       setData(json)

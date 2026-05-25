@@ -54,7 +54,8 @@ export default function MapView({
     if (window.naver && window.naver.maps) { initMap(); return }
     document.querySelectorAll('script[src*="maps.js"]').forEach((s) => s.remove())
     const script = document.createElement('script')
-    script.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=psc3xcgzk6'
+    const clientId = import.meta.env.VITE_NAVER_CLIENT_ID || 'psc3xcgzk6'
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`
     script.async = true
     script.onload = () => initMap()
     script.onerror = () => console.error('네이버 지도 로드 실패')

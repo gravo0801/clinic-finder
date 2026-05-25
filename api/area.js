@@ -125,6 +125,7 @@ const buildRegionInfo = (source, data) => {
   const sidoCode = String(data.sido_cd || '')
   const sggCode = String(data.sgg_cd || '')
   const lawdCd = String(data.lawdCd || (sggCode.length >= 5 ? sggCode.slice(0, 5) : ''))
+  const extraCandidates = Array.isArray(data.sgisCandidates) ? data.sgisCandidates : []
 
   return {
     provider: source,
@@ -133,6 +134,7 @@ const buildRegionInfo = (source, data) => {
     dong: data.dong || data.emdong_nm || data.addr_name || '',
     admCode,
     sgisCandidates: unique([
+      ...extraCandidates.map(String),
       admCode,
       admCode.slice(0, 7),
       admCode.slice(0, 5),
@@ -141,6 +143,24 @@ const buildRegionInfo = (source, data) => {
     ]),
     lawdCd,
   }
+}
+
+const getRegionInfoFromQuery = (query) => {
+  const admCode = String(query.admCode || '')
+  const lawdCd = String(query.lawdCd || '')
+  if (!admCode && !lawdCd) return null
+
+  return buildRegionInfo('BrowserNaver', {
+    sido: query.sido,
+    sigungu: query.sigungu,
+    dong: query.dong,
+    admCode,
+    lawdCd,
+    sgisCandidates: String(query.sgisCandidates || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  })
 }
 
 const getNaverRegionInfo = async (lat, lng) => {
@@ -476,7 +496,12 @@ export default async function handler(req, res) {
 
   const sources = {}
   const warnings = []
-  const regionInfo = await getRegionInfo(lat, lng, sources, warnings)
+  const browserRegionInfo = getRegionInfoFromQuery(req.query)
+  if (browserRegionInfo) {
+    sources.region = { configured: true, status: 'ok' }
+  }
+
+  const regionInfo = browserRegionInfo || await getRegionInfo(lat, lng, sources, warnings)
 
   const [sgisData, residentData, commercialData, apartmentData] = await Promise.all([
     getSgisData(regionInfo, sources, warnings),
