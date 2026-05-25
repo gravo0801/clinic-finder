@@ -7,6 +7,13 @@ const sourceState = (enabled) => ({
 
 const blockedState = { configured: true, status: 'blocked' }
 
+const sgisBaseUrls = () =>
+  unique([
+    process.env.SGIS_API_BASE,
+    'https://sgisapi.kostat.go.kr',
+    'https://sgisapi.mods.go.kr',
+  ])
+
 const parseNumber = (value) => {
   if (value === undefined || value === null || value === '' || value === 'N/A') return 0
   const parsed = Number(String(value).replace(/[^\d.-]/g, ''))
@@ -92,16 +99,25 @@ const getSgisCredentials = () => ({
   securityKey: process.env.SGIS_SECURITY_KEY,
 })
 
-const getSgisAccessToken = async () => {
+const getSgisAccess = async () => {
   const { serviceId, securityKey } = getSgisCredentials()
   if (!serviceId || !securityKey) return null
 
-  const tokenData = await fetchJson(
-    `https://sgisapi.kostat.go.kr/OpenAPI3/auth/authentication.json?consumer_key=${encodeURIComponent(serviceId)}&consumer_secret=${encodeURIComponent(securityKey)}`,
-  )
-  const token = tokenData.result?.accessToken
-  if (!token) throw new Error(tokenData.errMsg || 'SGIS accessToken 발급 실패')
-  return token
+  const errors = []
+  for (const baseUrl of sgisBaseUrls()) {
+    try {
+      const tokenData = await fetchJson(
+        `${baseUrl}/OpenAPI3/auth/authentication.json?consumer_key=${encodeURIComponent(serviceId)}&consumer_secret=${encodeURIComponent(securityKey)}`,
+      )
+      const token = tokenData.result?.accessToken
+      if (!token) throw new Error(tokenData.errMsg || tokenData.rawText || 'SGIS accessToken 발급 실패')
+      return { token, baseUrl }
+    } catch (error) {
+      errors.push(`${baseUrl.replace('https://', '')}: ${error.message}`)
+    }
+  }
+
+  throw new Error(errors.join(' / ') || 'SGIS accessToken 발급 실패')
 }
 
 const buildRegionInfo = (source, data) => {
@@ -159,10 +175,10 @@ const getNaverRegionInfo = async (lat, lng) => {
 }
 
 const getSgisRegionInfo = async (lat, lng) => {
-  const token = await getSgisAccessToken()
-  if (!token) return null
+  const access = await getSgisAccess()
+  if (!access?.token) return null
 
-  const url = `https://sgisapi.kostat.go.kr/OpenAPI3/addr/rgeocodewgs84.json?accessToken=${token}&x_coor=${lng}&y_coor=${lat}&addr_type=20`
+  const url = `${access.baseUrl}/OpenAPI3/addr/rgeocodewgs84.json?accessToken=${encodeURIComponent(access.token)}&x_coor=${lng}&y_coor=${lat}&addr_type=20`
   const data = await fetchJson(url)
   if (data.errCd && Number(data.errCd) !== 0) throw new Error(data.errMsg || 'SGIS 역지오코딩 실패')
 
@@ -224,13 +240,15 @@ const getSgisData = async (regionInfo, sources, warnings) => {
   }
 
   try {
-    const token = await getSgisAccessToken()
+    const access = await getSgisAccess()
+    const token = encodeURIComponent(access.token)
+    const baseUrl = access.baseUrl
 
     for (const admCd of regionInfo.sgisCandidates) {
       const [summary, gender, total] = await Promise.all([
-        fetchJson(`https://sgisapi.kostat.go.kr/OpenAPI3/startupbiz/pplsummary.json?accessToken=${token}&adm_cd=${admCd}`),
-        fetchJson(`https://sgisapi.kostat.go.kr/OpenAPI3/startupbiz/mfratiosummary.json?accessToken=${token}&adm_cd=${admCd}`),
-        fetchJson(`https://sgisapi.kostat.go.kr/OpenAPI3/stats/population.json?accessToken=${token}&year=2020&adm_cd=${admCd}&low_search=0`),
+        fetchJson(`${baseUrl}/OpenAPI3/startupbiz/pplsummary.json?accessToken=${token}&adm_cd=${admCd}`),
+        fetchJson(`${baseUrl}/OpenAPI3/startupbiz/mfratiosummary.json?accessToken=${token}&adm_cd=${admCd}`),
+        fetchJson(`${baseUrl}/OpenAPI3/stats/population.json?accessToken=${token}&year=2020&adm_cd=${admCd}&low_search=0`),
       ])
       const age = summary.result?.[0]
       const sex = gender.result?.[0]
