@@ -8,6 +8,7 @@ import ChecklistPanel from './components/ChecklistPanel'
 import SearchBar from './components/SearchBar'
 import ComparePanel from './components/ComparePanel'
 import MigrationBanner from './components/MigrationBanner'
+import AreaAnalysisPanel from './components/AreaAnalysisPanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics } from './firebase'
 
 export default function App() {
@@ -60,6 +61,12 @@ export default function App() {
   const handleChecklistOpen = (spot) => {
     setSelectedSpot(spot)
     setPanelMode('checklist')
+    setCenterOn({ lat: spot.lat, lng: spot.lng })
+  }
+
+  const handleAreaOpen = (spot) => {
+    setSelectedSpot(spot)
+    setPanelMode('area')
     setCenterOn({ lat: spot.lat, lng: spot.lng })
   }
 
@@ -173,6 +180,7 @@ export default function App() {
           onNearby={() => selectedSpot && handleNearbyOpen(selectedSpot)}
           onAI={() => selectedSpot && handleAIOpen(selectedSpot)}
           onChecklist={() => selectedSpot && handleChecklistOpen(selectedSpot)}
+          onArea={() => selectedSpot && handleAreaOpen(selectedSpot)}
         />
       )}
 
@@ -191,6 +199,10 @@ export default function App() {
 
       {panelMode === 'checklist' && selectedSpot && (
         <ChecklistPanel spot={selectedSpot} onClose={handleClose} />
+      )}
+
+      {panelMode === 'area' && selectedSpot && (
+        <AreaAnalysisPanel spot={selectedSpot} onClose={handleClose} />
       )}
 
       {panelMode === 'compare' && (

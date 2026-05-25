@@ -119,7 +119,7 @@ function LocationScoreSummary({ score, compact = false }) {
   )
 }
 
-function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onClose }) {
+function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onArea, onClose }) {
   const r = spot.rating || 0
   const checkDone = spot.checklist?.filter((c) => c.done).length || 0
   const checkTotal = spot.checklist?.length || 0
@@ -179,6 +179,7 @@ function ViewMode({ spot, onEdit, onNearby, onAI, onChecklist, onClose }) {
           <button className="view-sub-btn nearby" onClick={onNearby}>🏥 주변 의원</button>
           <button className="view-sub-btn ai" onClick={onAI}>🤖 AI 분석</button>
           <button className="view-sub-btn checklist" onClick={onChecklist}>📋 임장</button>
+          <button className="view-sub-btn area" onClick={onArea}>📊 지역</button>
         </div>
       </div>
     </div>
@@ -513,7 +514,7 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
 }
 
 export default function SpotPanel(props) {
-  const { mode, onNearby, onAI, onChecklist } = props
+  const { mode, onNearby, onAI, onChecklist, onArea } = props
   const [localMode, setLocalMode] = useState(mode)
   useEffect(() => { setLocalMode(mode) }, [mode, props.spot?.id])
 
@@ -521,7 +522,7 @@ export default function SpotPanel(props) {
     return (
       <ViewMode spot={props.spot}
         onEdit={() => setLocalMode('editing')}
-        onNearby={onNearby} onAI={onAI} onChecklist={onChecklist}
+        onNearby={onNearby} onAI={onAI} onChecklist={onChecklist} onArea={onArea}
         onClose={props.onClose}
       />
     )
