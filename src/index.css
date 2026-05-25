@@ -4,6 +4,11 @@
 
 :root {
   --sidebar-w: 300px;
+  --app-height: 100vh;
+  --mobile-sidebar-height: min(39vh, 330px);
+  --mobile-sidebar-height-small: 42vh;
+  --mobile-panel-height: min(86vh, 760px);
+  --mobile-search-results-height: min(50vh, 420px);
   --bg-dark: #0f0f1a;
   --bg-card: #1a1a2e;
   --bg-card2: #16213e;
@@ -817,18 +822,18 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 
 @media (max-width: 768px) {
   :root { --sidebar-w: 100vw; }
-  html, body, #root { height: 100%; height: 100dvh; }
+  html, body, #root { height: 100%; height: var(--app-height); }
   body { overscroll-behavior: none; }
-  .app { display: block; height: 100dvh; overflow: hidden; }
+  .app { display: block; height: var(--app-height); overflow: hidden; }
 
-  .map-area { height: 100dvh; width: 100vw; }
+  .map-area { height: var(--app-height); width: 100vw; }
   .map-searchbar { top: calc(10px + env(safe-area-inset-top)); left: 12px; right: 12px; width: auto; transform: none; }
   .searchbar-inner { height: 46px; border-radius: 10px; }
-  .search-results { max-height: 50dvh; overflow-y: auto; }
+  .search-results { max-height: var(--mobile-search-results-height); overflow-y: auto; }
 
   .sidebar {
-    position: absolute; left: 0; right: 0; bottom: 0;
-    width: 100vw; min-width: 0; height: min(39dvh, 330px);
+    position: fixed; left: 0; right: 0; bottom: 0;
+    width: 100vw; min-width: 0; height: var(--mobile-sidebar-height);
     border-right: none; border-top: 1px solid var(--border);
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -8px 28px rgba(0,0,0,0.32);
@@ -862,13 +867,13 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
   .empty-icon { font-size: 30px; margin-bottom: 8px; }
 
   .map-hint {
-    bottom: calc(min(39dvh, 330px) + 18px); max-width: calc(100vw - 24px);
+    bottom: calc(var(--mobile-sidebar-height) + 18px); max-width: calc(100vw - 24px);
     overflow: hidden; text-overflow: ellipsis; padding: 9px 14px; font-size: 12px;
   }
 
   .spot-panel, .nearby-panel, .ai-panel, .checklist-panel, .compare-panel, .area-panel, .competitor-panel, .clinic-search-panel, .building-panel, .recovery-panel {
-    left: 0; right: 0; top: auto; bottom: 0;
-    width: 100vw !important; height: min(86dvh, 760px);
+    position: fixed; left: 0; right: 0; top: auto; bottom: 0;
+    width: 100vw !important; height: var(--mobile-panel-height);
     border-radius: 18px 18px 0 0;
     animation: slideUp 0.22s cubic-bezier(0.34,1.1,0.64,1);
     box-shadow: 0 -10px 34px rgba(0,0,0,0.34);
@@ -930,8 +935,8 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 }
 
 @media (max-width: 420px) {
-  .sidebar { height: 42dvh; }
+  .sidebar { height: var(--mobile-sidebar-height-small); }
   .sidebar.collapsed { transform: translateY(calc(100% - 72px - env(safe-area-inset-bottom))); }
-  .map-hint { bottom: calc(42dvh + 16px); }
+  .map-hint { bottom: calc(var(--mobile-sidebar-height-small) + 16px); }
   .spot-tags { display: none; }
 }

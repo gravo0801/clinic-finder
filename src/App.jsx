@@ -32,6 +32,26 @@ export default function App() {
   const [activeSidebarTab, setActiveSidebarTab] = useState('spots')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
+  useEffect(() => {
+    const syncAppHeight = () => {
+      const height = window.innerHeight
+      document.documentElement.style.setProperty('--app-height', `${height}px`)
+      document.documentElement.style.setProperty('--mobile-sidebar-height', `${Math.min(height * 0.39, 330)}px`)
+      document.documentElement.style.setProperty('--mobile-sidebar-height-small', `${height * 0.42}px`)
+      document.documentElement.style.setProperty('--mobile-panel-height', `${Math.min(height * 0.86, 760)}px`)
+      document.documentElement.style.setProperty('--mobile-search-results-height', `${Math.min(height * 0.5, 420)}px`)
+    }
+
+    syncAppHeight()
+    window.addEventListener('resize', syncAppHeight)
+    window.addEventListener('orientationchange', syncAppHeight)
+
+    return () => {
+      window.removeEventListener('resize', syncAppHeight)
+      window.removeEventListener('orientationchange', syncAppHeight)
+    }
+  }, [])
+
   useEffect(() => subscribeSpots(setSpots), [])
   useEffect(() => subscribeSavedClinics(setSavedClinics), [])
   useEffect(() => subscribeSavedBuildings(setSavedBuildings), [])
