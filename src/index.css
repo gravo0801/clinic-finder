@@ -340,7 +340,7 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 }
 .source-badge.ok { background: #f0fff4; color: #228a3a; border-color: #b7ebc6; }
 .source-badge.error { background: #fff1f1; color: #cf3030; border-color: #f1b8b8; }
-.source-badge.empty, .source-badge.missing_key { background: #f4f5f8; color: #8b91a0; border-color: #e2e5ec; }
+.source-badge.empty, .source-badge.missing_key, .source-badge.blocked { background: #f4f5f8; color: #8b91a0; border-color: #e2e5ec; }
 .area-warning {
   margin-bottom: 12px; padding: 10px 12px; background: #fff8e8; border: 1px solid #f5d28c;
   border-radius: 10px; color: #8a6100; font-size: 11px; line-height: 1.55;

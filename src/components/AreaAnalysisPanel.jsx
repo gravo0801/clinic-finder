@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 const SOURCE_LABELS = {
-  naver: '행정구역',
+  region: '행정구역',
   sgis: 'SGIS',
   resident: '주민등록',
   smallBiz: '상권',
@@ -14,6 +14,7 @@ const sourceText = {
   empty: '자료 없음',
   error: '오류',
   missing_key: '키 없음',
+  blocked: '지역코드 필요',
 }
 
 const parseNumber = (value) => {

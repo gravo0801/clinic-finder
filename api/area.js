@@ -5,6 +5,8 @@ const sourceState = (enabled) => ({
   status: enabled ? 'pending' : 'missing_key',
 })
 
+const blockedState = { configured: true, status: 'blocked' }
+
 const parseNumber = (value) => {
   if (value === undefined || value === null || value === '' || value === 'N/A') return 0
   const parsed = Number(String(value).replace(/[^\d.-]/g, ''))
@@ -72,58 +74,157 @@ const pick = (object, keys) => {
   return undefined
 }
 
-const getRegionInfo = async (lat, lng, sources, warnings) => {
-  const clientId = process.env.NAVER_SEARCH_CLIENT_ID
-  const clientSecret = process.env.NAVER_SEARCH_CLIENT_SECRET
-  sources.naver = sourceState(clientId && clientSecret)
+const getNaverMapKeys = () => ({
+  clientId:
+    process.env.NAVER_MAPS_CLIENT_ID ||
+    process.env.NAVER_MAP_CLIENT_ID ||
+    process.env.NAVER_CLOUD_CLIENT_ID ||
+    process.env.NAVER_SEARCH_CLIENT_ID,
+  clientSecret:
+    process.env.NAVER_MAPS_CLIENT_SECRET ||
+    process.env.NAVER_MAP_CLIENT_SECRET ||
+    process.env.NAVER_CLOUD_CLIENT_SECRET ||
+    process.env.NAVER_SEARCH_CLIENT_SECRET,
+})
 
-  if (!clientId || !clientSecret) {
-    warnings.push('네이버 역지오코딩 키가 없어 행정동/법정동 코드 기반 API 일부를 건너뜁니다.')
-    return {}
-  }
+const getSgisCredentials = () => ({
+  serviceId: process.env.SGIS_SERVICE_ID,
+  securityKey: process.env.SGIS_SECURITY_KEY,
+})
 
-  try {
-    const url = `https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${lng},${lat}&orders=admcode,addr&output=json`
-    const data = await fetchJson(url, {
-      headers: {
-        'X-NCP-APIGW-API-KEY-ID': clientId,
-        'X-NCP-APIGW-API-KEY': clientSecret,
-      },
-    })
-    const adm = data.results?.find((item) => item.name === 'admcode')
-    const addr = data.results?.find((item) => item.name === 'addr')
-    const code = adm?.code?.id || ''
-    const lawCode = addr?.code?.id || code
+const getSgisAccessToken = async () => {
+  const { serviceId, securityKey } = getSgisCredentials()
+  if (!serviceId || !securityKey) return null
 
-    sources.naver.status = adm ? 'ok' : 'empty'
-    return {
-      sido: adm?.region?.area1?.name || addr?.region?.area1?.name || '',
-      sigungu: adm?.region?.area2?.name || addr?.region?.area2?.name || '',
-      dong: adm?.region?.area3?.name || addr?.region?.area3?.name || '',
-      admCode: code,
-      sgisCandidates: unique([code.slice(0, 7), code.slice(0, 5)]),
-      lawdCd: lawCode.slice(0, 5),
-    }
-  } catch (error) {
-    sources.naver.status = 'error'
-    warnings.push(`역지오코딩 실패: ${error.message}`)
-    return {}
+  const tokenData = await fetchJson(
+    `https://sgisapi.kostat.go.kr/OpenAPI3/auth/authentication.json?consumer_key=${encodeURIComponent(serviceId)}&consumer_secret=${encodeURIComponent(securityKey)}`,
+  )
+  const token = tokenData.result?.accessToken
+  if (!token) throw new Error(tokenData.errMsg || 'SGIS accessToken 발급 실패')
+  return token
+}
+
+const buildRegionInfo = (source, data) => {
+  const admCode = String(data.admCode || data.adm_dr_cd || data.emdong_cd || data.cd || '')
+  const sidoCode = String(data.sido_cd || '')
+  const sggCode = String(data.sgg_cd || '')
+  const lawdCd = String(data.lawdCd || (sggCode.length >= 5 ? sggCode.slice(0, 5) : ''))
+
+  return {
+    provider: source,
+    sido: data.sido || data.sido_nm || '',
+    sigungu: data.sigungu || data.sgg_nm || '',
+    dong: data.dong || data.emdong_nm || data.addr_name || '',
+    admCode,
+    sgisCandidates: unique([
+      admCode,
+      admCode.slice(0, 7),
+      admCode.slice(0, 5),
+      sggCode,
+      sidoCode && sggCode.length === 3 ? `${sidoCode}${sggCode}` : '',
+    ]),
+    lawdCd,
   }
 }
 
-const getSgisData = async (regionInfo, sources, warnings) => {
-  const serviceId = process.env.SGIS_SERVICE_ID
-  const securityKey = process.env.SGIS_SECURITY_KEY
-  sources.sgis = sourceState(serviceId && securityKey)
+const getNaverRegionInfo = async (lat, lng) => {
+  const { clientId, clientSecret } = getNaverMapKeys()
+  if (!clientId || !clientSecret) return null
 
-  if (!serviceId || !securityKey || regionInfo.sgisCandidates?.length === 0) return {}
+  const url = `https://naveropenapi.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${lng},${lat}&orders=admcode,addr&output=json`
+  const data = await fetchJson(url, {
+    headers: {
+      'X-NCP-APIGW-API-KEY-ID': clientId,
+      'X-NCP-APIGW-API-KEY': clientSecret,
+    },
+  })
+
+  if (data.error || data.status >= 400) {
+    throw new Error(data.error?.message || data.message || `HTTP ${data.status}`)
+  }
+
+  const adm = data.results?.find((item) => item.name === 'admcode')
+  const addr = data.results?.find((item) => item.name === 'addr')
+  const code = adm?.code?.id || ''
+  const lawCode = addr?.code?.id || code
+  if (!adm && !addr) return null
+
+  return buildRegionInfo('Naver', {
+    sido: adm?.region?.area1?.name || addr?.region?.area1?.name || '',
+    sigungu: adm?.region?.area2?.name || addr?.region?.area2?.name || '',
+    dong: adm?.region?.area3?.name || addr?.region?.area3?.name || '',
+    admCode: code,
+    lawdCd: lawCode.slice(0, 5),
+  })
+}
+
+const getSgisRegionInfo = async (lat, lng) => {
+  const token = await getSgisAccessToken()
+  if (!token) return null
+
+  const url = `https://sgisapi.kostat.go.kr/OpenAPI3/addr/rgeocodewgs84.json?accessToken=${token}&x_coor=${lng}&y_coor=${lat}&addr_type=20`
+  const data = await fetchJson(url)
+  if (data.errCd && Number(data.errCd) !== 0) throw new Error(data.errMsg || 'SGIS 역지오코딩 실패')
+
+  const result = Array.isArray(data.result) ? data.result[0] : data.result
+  if (!result) return null
+  return buildRegionInfo('SGIS', result)
+}
+
+const getRegionInfo = async (lat, lng, sources, warnings) => {
+  const { clientId, clientSecret } = getNaverMapKeys()
+  const { serviceId, securityKey } = getSgisCredentials()
+  sources.region = sourceState((clientId && clientSecret) || (serviceId && securityKey))
+
+  if ((!clientId || !clientSecret) && (!serviceId || !securityKey)) {
+    warnings.push('행정구역 코드 조회 키가 없어 SGIS/주민등록/실거래가 조회를 건너뜁니다.')
+    return {}
+  }
+
+  const regionErrors = []
 
   try {
-    const tokenData = await fetchJson(
-      `https://sgisapi.kostat.go.kr/OpenAPI3/auth/authentication.json?consumer_key=${encodeURIComponent(serviceId)}&consumer_secret=${encodeURIComponent(securityKey)}`,
-    )
-    const token = tokenData.result?.accessToken
-    if (!token) throw new Error(tokenData.errMsg || 'SGIS accessToken 발급 실패')
+    const naverInfo = await getNaverRegionInfo(lat, lng)
+    if (naverInfo?.admCode || naverInfo?.lawdCd) {
+      sources.region.status = 'ok'
+      return naverInfo
+    }
+  } catch (error) {
+    regionErrors.push(`네이버 ${error.message}`)
+  }
+
+  try {
+    const sgisInfo = await getSgisRegionInfo(lat, lng)
+    if (sgisInfo?.admCode || sgisInfo?.lawdCd) {
+      sources.region.status = 'ok'
+      return sgisInfo
+    }
+  } catch (error) {
+    regionErrors.push(`SGIS ${error.message}`)
+  }
+
+  sources.region.status = regionErrors.length ? 'error' : 'empty'
+  if (regionErrors.length) {
+    warnings.push(`행정구역 조회 실패: ${regionErrors.join(' / ')}`)
+  } else {
+    warnings.push('좌표에 맞는 행정구역 코드를 찾지 못했습니다.')
+  }
+
+  return {}
+}
+
+const getSgisData = async (regionInfo, sources, warnings) => {
+  const { serviceId, securityKey } = getSgisCredentials()
+  sources.sgis = sourceState(serviceId && securityKey)
+
+  if (!serviceId || !securityKey) return {}
+  if (!regionInfo.sgisCandidates?.length) {
+    sources.sgis = blockedState
+    return {}
+  }
+
+  try {
+    const token = await getSgisAccessToken()
 
     for (const admCd of regionInfo.sgisCandidates) {
       const [summary, gender, total] = await Promise.all([
@@ -170,7 +271,11 @@ const getSgisData = async (regionInfo, sources, warnings) => {
 const getResidentData = async (regionInfo, sources, warnings) => {
   const key = process.env.RESIDENT_API_KEY
   sources.resident = sourceState(key)
-  if (!key || !regionInfo.admCode) return {}
+  if (!key) return {}
+  if (!regionInfo.admCode) {
+    sources.resident = blockedState
+    return {}
+  }
 
   const periods = previousMonths(4)
   const admCodes = unique([regionInfo.admCode, regionInfo.admCode.slice(0, 8), regionInfo.admCode.slice(0, 7)])
@@ -304,7 +409,11 @@ const parseApartmentPrices = (text) => {
 const getApartmentData = async (regionInfo, sources, warnings) => {
   const key = process.env.REALESTATE_API_KEY
   sources.realEstate = sourceState(key)
-  if (!key || !regionInfo.lawdCd) return {}
+  if (!key) return {}
+  if (!regionInfo.lawdCd) {
+    sources.realEstate = blockedState
+    return {}
+  }
 
   try {
     for (const dealYm of previousMonths(6, 0)) {
