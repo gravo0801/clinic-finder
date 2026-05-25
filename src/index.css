@@ -362,6 +362,10 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 .competitor-form-grid label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .competitor-form-grid label.full { grid-column: 1 / -1; }
 .competitor-form-grid label span { color: #6f7480; font-size: 10px; font-weight: 900; }
+.competitor-form-subtitle {
+  grid-column: 1 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid #eef0f8;
+  color: #1a1a2e; font-size: 11px; font-weight: 900;
+}
 .competitor-actions { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; margin-top: 12px; }
 .competitor-actions .btn-analyze, .competitor-actions .btn-reanalyze { margin-bottom: 0; min-height: 42px; }
 .competitor-source-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -392,6 +396,58 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 .competitor-breakdown div { border-radius: 8px; background: #fafbfc; border: 1px solid #eef0f8; padding: 8px 6px; text-align: center; }
 .competitor-breakdown span { display: block; color: #8a91a0; font-size: 9px; font-weight: 900; margin-bottom: 3px; }
 .competitor-breakdown b { color: #1a1a2e; font-size: 14px; font-weight: 900; }
+.concept-card, .signal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.concept-card > div, .marketing-signal-card, .trend-card, .revenue-tier-grid > div {
+  border-radius: 10px; background: #fafbfc; border: 1px solid #eef0f8; padding: 11px 12px;
+}
+.concept-card span, .marketing-signal-card span, .revenue-tier-grid span {
+  display: block; color: #8a91a0; font-size: 10px; font-weight: 900; margin-bottom: 5px;
+}
+.concept-card strong, .marketing-signal-card strong, .revenue-tier-grid strong {
+  display: block; color: #1a1a2e; font-size: 13px; font-weight: 900; margin-bottom: 5px;
+}
+.concept-card p, .marketing-signal-card p, .revenue-tier-grid p {
+  color: #667085; font-size: 11px; line-height: 1.45;
+}
+.revenue-analysis-card {
+  border-radius: 12px; border: 1px solid #d0d4f0; background: #f8f9ff; padding: 12px;
+}
+.revenue-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.revenue-head span { display: block; color: #667085; font-size: 10px; font-weight: 900; margin-bottom: 3px; }
+.revenue-head strong { color: #1a1a2e; font-size: 20px; font-weight: 900; }
+.revenue-head b {
+  min-width: 50px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: #fff; color: #5856D6; border: 1px solid #d0d4f0; font-size: 14px;
+}
+.revenue-tier-grid { display: grid; grid-template-columns: 1fr; gap: 7px; }
+.revenue-analysis-card > small {
+  display: block; color: #8a91a0; font-size: 10px; font-weight: 800; line-height: 1.45; margin-top: 9px;
+}
+.trend-card.positive { border-color: #bce7c7; background: #effaf2; }
+.trend-card.warning { border-color: #f1b8b8; background: #fff1f1; }
+.trend-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.trend-head strong { color: #1a1a2e; font-size: 13px; font-weight: 900; }
+.trend-head span { color: #5856D6; font-size: 11px; font-weight: 900; }
+.trend-card p { color: #667085; font-size: 11px; line-height: 1.45; margin-bottom: 7px; }
+.trend-bars { display: flex; flex-direction: column; gap: 5px; }
+.trend-row { display: grid; grid-template-columns: 36px 1fr 48px 44px; gap: 6px; align-items: center; }
+.trend-row span, .trend-row b, .trend-row em { color: #6f7480; font-size: 10px; font-style: normal; font-weight: 900; }
+.trend-row div { height: 7px; border-radius: 999px; background: rgba(88,86,214,0.12); overflow: hidden; }
+.trend-row i { display: block; height: 100%; border-radius: 999px; background: #5856D6; }
+.opportunity-list, .field-check-list { display: flex; flex-direction: column; gap: 7px; }
+.opportunity-list div, .field-check-list div {
+  border-radius: 10px; background: #fafbfc; border: 1px solid #eef0f8; padding: 10px 12px;
+}
+.opportunity-list strong, .field-check-list strong { display: block; color: #1a1a2e; font-size: 12px; font-weight: 900; margin-bottom: 4px; }
+.opportunity-list span { display: block; color: #8a91a0; font-size: 10px; font-weight: 800; margin-bottom: 4px; }
+.opportunity-list p, .field-check-list p { color: #333; font-size: 11px; line-height: 1.5; }
+.field-check-list div.high { border-color: #f5d28c; background: #fff8e8; }
+.field-check-list b {
+  display: inline-flex; align-items: center; height: 20px; border-radius: 999px;
+  background: #f0f2ff; color: #5856D6; padding: 0 7px; font-size: 9px; font-weight: 900; margin-bottom: 6px;
+}
+.field-check-list div.high b { background: #fff; color: #b56f00; border: 1px solid #f5d28c; }
+.field-check-list small { display: block; color: #8a91a0; font-size: 10px; line-height: 1.45; margin-top: 4px; }
 .competitor-bullets { display: flex; flex-direction: column; gap: 5px; }
 .competitor-bullets p {
   position: relative; padding-left: 12px; color: #333; font-size: 12px; line-height: 1.5;
@@ -808,9 +864,11 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
   .score-gauge { gap: 12px; padding: 12px; }
   .score-bar-wrap { width: 100%; }
   .stat-grid, .sale-grid { grid-template-columns: 1fr; }
-  .competitor-score-grid, .competitor-form-grid, .competitor-fact-grid, .competitor-search-grid { grid-template-columns: 1fr; }
+  .competitor-score-grid, .competitor-form-grid, .competitor-fact-grid, .competitor-search-grid, .concept-card, .signal-grid { grid-template-columns: 1fr; }
   .competitor-actions { grid-template-columns: 1fr; }
   .competitor-breakdown { grid-template-columns: repeat(2, 1fr); }
+  .trend-row { grid-template-columns: 36px 1fr 42px; }
+  .trend-row em { grid-column: 2 / -1; }
   .autocheck-card, .clinic-search-card, .saved-clinic-card { grid-template-columns: 1fr; }
   .autocheck-controls { grid-template-columns: 1fr 1fr; }
   .clinic-search-actions, .saved-clinic-side { flex-direction: row; align-items: center; justify-content: flex-end; flex-wrap: wrap; }

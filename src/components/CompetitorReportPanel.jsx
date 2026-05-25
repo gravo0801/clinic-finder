@@ -10,11 +10,39 @@ const MANUAL_DEFAULTS = {
   website: '',
   doctorProfileMemo: '',
   legalIssueMemo: '',
+  naverAd: 'unknown',
+  blogCount: '',
+  instagramActive: 'unknown',
+  instagramFollowers: '',
+  homepageQuality: '',
+  youtubeActive: 'unknown',
+  mamcafeMention: 'unknown',
+  nonInsuredStomachEndoscopy: '',
+  nonInsuredColonEndoscopy: '',
+  checkupPackagePrice: '',
+  ivTherapyPrice: '',
+  nonInsuredMemo: '',
+  trend2022: '',
+  trend2023: '',
+  trend2024: '',
+  noonPatientCount: '',
+  parkingSpots: '',
+  parkingType: 'unknown',
+  signVisibility: '',
+  facilityAge: 'unknown',
+  fieldNotes: '',
 }
 
 const AUTOCHECK_DEFAULTS = {
   enabled: true,
   intervalDays: 30,
+}
+
+const DISCLAIMER_TEXTS = {
+  revenue: 'AI 추정값 · 공개 데이터와 수동 입력 기반 · 실제 매출 금액 아님',
+  review: '사용자 직접 입력 · 리뷰 본문 자동 수집 없음',
+  score: '표면 신호 기반 추정 · 내부 경영 정보 미반영',
+  general: '본 분석은 참고용이며 법적 효력이 없습니다.',
 }
 
 const SOURCE_LABELS = {
@@ -45,6 +73,11 @@ const SOURCE_TEXT = {
 
 const scoreTone = (value) => (value >= 75 ? 'good' : value >= 45 ? 'mid' : 'low')
 const collisionTone = (value) => (value >= 70 ? 'low' : value >= 45 ? 'mid' : 'good')
+
+const formatPercent = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '-'
+  return `${Math.round(Number(value) * 1000) / 10}%`
+}
 
 const formatDate = (timestamp) => {
   if (!timestamp) return ''
@@ -104,6 +137,19 @@ function MetricCard({ label, value, sub, tone = 'mid' }) {
   )
 }
 
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <label>
+      <span>{label}</span>
+      <select className="business-input" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function TextList({ items = [], empty = '표시할 정보가 아직 없습니다.' }) {
   const visible = items.filter(Boolean)
   if (!visible.length) return <p className="competitor-empty-text">{empty}</p>
@@ -111,6 +157,98 @@ function TextList({ items = [], empty = '표시할 정보가 아직 없습니다
     <div className="competitor-bullets">
       {visible.map((item, index) => (
         <p key={`${item}-${index}`}>{item}</p>
+      ))}
+    </div>
+  )
+}
+
+function RevenueAnalysis({ data }) {
+  if (!data) return null
+  const tier2Signals = data.tier2?.signals || []
+  return (
+    <div className="revenue-analysis-card">
+      <div className="revenue-head">
+        <div>
+          <span>매출 잠재력</span>
+          <strong>{data.grade || '판단보류'}</strong>
+        </div>
+        <b>{data.confidence ?? '-'}%</b>
+      </div>
+      <div className="revenue-tier-grid">
+        <div>
+          <span>{data.tier1?.title || 'Tier 1'}</span>
+          <strong>{data.tier1?.level || '자료 부족'}</strong>
+          <p>{data.tier1?.note || '공식 진료량 데이터가 제한적입니다.'}</p>
+        </div>
+        <div>
+          <span>{data.tier2?.title || 'Tier 2'}</span>
+          <strong>비급여 비중 {data.tier2?.shareRange || '판단보류'}</strong>
+          <p>{tier2Signals.slice(0, 3).join(' · ') || '비급여 신호 부족'}</p>
+        </div>
+        <div>
+          <span>{data.tier3?.title || 'Tier 3'}</span>
+          <strong>{data.tier3?.level || '판단보류'}</strong>
+          <p>{data.tier3?.note || '동급 의원 비교 데이터가 더 필요합니다.'}</p>
+        </div>
+      </div>
+      <small>{data.disclaimer || DISCLAIMER_TEXTS.revenue}</small>
+    </div>
+  )
+}
+
+function TrendAnalysis({ data }) {
+  if (!data) return null
+  const yearly = data.yearly || []
+  const max = Math.max(...yearly.map((item) => Number(item.value) || 0), 1)
+  return (
+    <div className={`trend-card ${data.signal || 'neutral'}`}>
+      <div className="trend-head">
+        <strong>{data.label || '판단보류'}</strong>
+        {data.growthRate !== null && data.growthRate !== undefined && <span>{formatPercent(data.growthRate)}</span>}
+      </div>
+      <p>{data.summary || '연도별 입력값이 부족합니다.'}</p>
+      {yearly.length > 0 && (
+        <div className="trend-bars">
+          {yearly.map((item) => (
+            <div className="trend-row" key={item.year}>
+              <span>{item.year}</span>
+              <div><i style={{ width: `${Math.max(8, ((Number(item.value) || 0) / max) * 100)}%` }} /></div>
+              <b>{Number(item.value || 0).toLocaleString()}</b>
+              {item.deltaPct !== null && item.deltaPct !== undefined && <em>{item.deltaPct > 0 ? '+' : ''}{item.deltaPct}%</em>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OpportunityList({ items = [] }) {
+  if (!items.length) return <p className="competitor-empty-text">부정 키워드 기반 기회 신호가 아직 없습니다.</p>
+  return (
+    <div className="opportunity-list">
+      {items.map((item) => (
+        <div key={item.key || item.label}>
+          <strong>{item.label}</strong>
+          {item.evidence && <span>근거: {item.evidence}</span>}
+          <p>{item.opportunity}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function FieldChecklist({ items = [] }) {
+  if (!items.length) return <p className="competitor-empty-text">현재 입력 기준 추가 임장 과제는 제한적입니다.</p>
+  return (
+    <div className="field-check-list">
+      {items.map((item, index) => (
+        <div key={`${item.task}-${index}`} className={item.priority === 'HIGH' ? 'high' : ''}>
+          <b>{item.priority}</b>
+          <strong>{item.task}</strong>
+          <p>{item.method}</p>
+          <small>{item.effect}</small>
+        </div>
       ))}
     </div>
   )
@@ -222,6 +360,8 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   const buildBaseReport = () => ({
     clinic: {
       id: clinic.id,
+      hiraId: clinic.hiraId || '',
+      source: clinic.source || '',
       name: clinic.name || '',
       type: clinic.type || '',
       dept: clinic.dept || '',
@@ -231,6 +371,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
       lng: clinic.lng ?? null,
       distance: clinic.distance ?? null,
       isCompetitor: !!clinic.isCompetitor,
+      webLink: clinic.webLink || '',
     },
     manualReview,
     autoCheck,
@@ -347,7 +488,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
               label="매출 잠재력"
               value={ai.revenuePotential || '판단보류'}
               sub="절대 매출 아님"
-              tone={ai.revenuePotential === '높음' ? 'good' : ai.revenuePotential === '낮음' ? 'low' : 'mid'}
+              tone={['매우 높음', '높음'].includes(ai.revenuePotential) ? 'good' : ai.revenuePotential === '낮음' ? 'low' : 'mid'}
             />
             <MetricCard
               label="신뢰도"
@@ -359,8 +500,54 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
         )}
 
         <div className="competitor-notice">
-          실제 매출, 의사 실력, 내부 직원 수준은 공개 자료로 단정하지 않습니다. 이 리포트는 공개 신호와 수동 입력값 기반의 경쟁 강도 추정입니다.
+          {DISCLAIMER_TEXTS.score} · {DISCLAIMER_TEXTS.general}
         </div>
+
+        {ai && (
+          <>
+            <div className="competitor-section">
+              <div className="competitor-section-title">
+                <span>의원 컨셉과 Gravo 충돌도</span>
+                <small>룰+AI 추정</small>
+              </div>
+              <div className="concept-card">
+                <div>
+                  <span>분류</span>
+                  <strong>{ai.clinicConcept?.label || '판단보류'}</strong>
+                  <p>{ai.clinicConcept?.summary || '공개 신호만으로 분류가 제한적입니다.'}</p>
+                </div>
+                <div>
+                  <span>충돌 가중치</span>
+                  <strong>{ai.clinicConcept?.collisionWeight ?? '-'}</strong>
+                  <p>{(ai.clinicConcept?.signals || []).slice(0, 3).join(' · ') || '주요 신호 부족'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="competitor-section">
+              <div className="competitor-section-title">
+                <span>매출 잠재력 분석</span>
+                <small>금액 미표시</small>
+              </div>
+              <RevenueAnalysis data={ai.revenueAnalysis} />
+            </div>
+
+            <div className="competitor-section">
+              <div className="competitor-section-title">
+                <span>마케팅 집약도와 트렌드</span>
+                <small>수동 입력 보강</small>
+              </div>
+              <div className="signal-grid">
+                <div className="marketing-signal-card">
+                  <span>마케팅 집약도</span>
+                  <strong>{ai.marketingSignal?.score ?? '-'}점 · {ai.marketingSignal?.label || '판단보류'}</strong>
+                  <p>{(ai.marketingSignal?.notes || []).slice(0, 3).join(' · ') || '수동 확인 필요'}</p>
+                </div>
+                <TrendAnalysis data={ai.trendAnalysis} />
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="competitor-section">
           <div className="competitor-section-title">
@@ -438,6 +625,135 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
             <label className="full">
               <span>법적/행정 이슈 메모</span>
               <textarea className="business-textarea" value={manualReview.legalIssueMemo} onChange={(event) => setField('legalIssueMemo', event.target.value)} placeholder="뉴스, 공표자료, 소송/행정처분 의심 단서 등" />
+            </label>
+
+            <div className="competitor-form-subtitle full">마케팅 신호</div>
+            <SelectField
+              label="네이버 광고 노출"
+              value={manualReview.naverAd}
+              onChange={(value) => setField('naverAd', value)}
+              options={[
+                { value: 'unknown', label: '미확인' },
+                { value: 'yes', label: '노출됨' },
+                { value: 'no', label: '노출 안 됨' },
+              ]}
+            />
+            <label>
+              <span>블로그 게시글 수</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.blogCount} onChange={(event) => setField('blogCount', event.target.value)} placeholder="예: 80" />
+            </label>
+            <SelectField
+              label="인스타그램"
+              value={manualReview.instagramActive}
+              onChange={(value) => setField('instagramActive', value)}
+              options={[
+                { value: 'unknown', label: '미확인' },
+                { value: 'yes', label: '운영' },
+                { value: 'no', label: '미운영' },
+              ]}
+            />
+            <label>
+              <span>인스타 팔로워</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.instagramFollowers} onChange={(event) => setField('instagramFollowers', event.target.value)} placeholder="예: 1200" />
+            </label>
+            <label>
+              <span>홈페이지 품질</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.homepageQuality} onChange={(event) => setField('homepageQuality', event.target.value)} placeholder="1~5" />
+            </label>
+            <SelectField
+              label="유튜브"
+              value={manualReview.youtubeActive}
+              onChange={(value) => setField('youtubeActive', value)}
+              options={[
+                { value: 'unknown', label: '미확인' },
+                { value: 'yes', label: '운영' },
+                { value: 'no', label: '미운영' },
+              ]}
+            />
+            <SelectField
+              label="맘카페/지역 커뮤니티"
+              value={manualReview.mamcafeMention}
+              onChange={(value) => setField('mamcafeMention', value)}
+              options={[
+                { value: 'unknown', label: '미확인' },
+                { value: 'yes', label: '언급 있음' },
+                { value: 'no', label: '언급 없음' },
+              ]}
+            />
+
+            <div className="competitor-form-subtitle full">비급여·검진 가격 단서</div>
+            <label>
+              <span>위내시경 수면</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.nonInsuredStomachEndoscopy} onChange={(event) => setField('nonInsuredStomachEndoscopy', event.target.value)} placeholder="내부 참고용" />
+            </label>
+            <label>
+              <span>대장내시경 수면</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.nonInsuredColonEndoscopy} onChange={(event) => setField('nonInsuredColonEndoscopy', event.target.value)} placeholder="내부 참고용" />
+            </label>
+            <label>
+              <span>검진 패키지</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.checkupPackagePrice} onChange={(event) => setField('checkupPackagePrice', event.target.value)} placeholder="내부 참고용" />
+            </label>
+            <label>
+              <span>수액/영양주사</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.ivTherapyPrice} onChange={(event) => setField('ivTherapyPrice', event.target.value)} placeholder="내부 참고용" />
+            </label>
+            <label className="full">
+              <span>비급여 메모</span>
+              <textarea className="business-textarea" value={manualReview.nonInsuredMemo} onChange={(event) => setField('nonInsuredMemo', event.target.value)} placeholder="가격표 출처, 검진 패키지 구성, 수액/예방접종 노출 등" />
+            </label>
+
+            <div className="competitor-form-subtitle full">트렌드·임장 입력</div>
+            <label>
+              <span>2022 진료량 지표</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.trend2022} onChange={(event) => setField('trend2022', event.target.value)} placeholder="청구/리뷰/방문 지표" />
+            </label>
+            <label>
+              <span>2023 진료량 지표</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.trend2023} onChange={(event) => setField('trend2023', event.target.value)} placeholder="동일 기준 입력" />
+            </label>
+            <label>
+              <span>2024 진료량 지표</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.trend2024} onChange={(event) => setField('trend2024', event.target.value)} placeholder="동일 기준 입력" />
+            </label>
+            <label>
+              <span>점심시간 환자 수</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.noonPatientCount} onChange={(event) => setField('noonPatientCount', event.target.value)} placeholder="30분 카운트" />
+            </label>
+            <label>
+              <span>주차 대수</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.parkingSpots} onChange={(event) => setField('parkingSpots', event.target.value)} placeholder="예: 6" />
+            </label>
+            <SelectField
+              label="주차 방식"
+              value={manualReview.parkingType}
+              onChange={(value) => setField('parkingType', value)}
+              options={[
+                { value: 'unknown', label: '미확인' },
+                { value: 'self', label: '자주식' },
+                { value: 'mechanical', label: '기계식' },
+                { value: 'valet', label: '발렛/제휴' },
+                { value: 'street', label: '노상/불편' },
+              ]}
+            />
+            <label>
+              <span>간판 노출도</span>
+              <input className="business-input" inputMode="numeric" value={manualReview.signVisibility} onChange={(event) => setField('signVisibility', event.target.value)} placeholder="1~5" />
+            </label>
+            <SelectField
+              label="시설 체감"
+              value={manualReview.facilityAge}
+              onChange={(value) => setField('facilityAge', value)}
+              options={[
+                { value: 'unknown', label: '미확인' },
+                { value: 'new', label: '신축/깨끗' },
+                { value: 'mid', label: '보통' },
+                { value: 'old', label: '노후' },
+              ]}
+            />
+            <label className="full">
+              <span>임장 메모</span>
+              <textarea className="business-textarea" value={manualReview.fieldNotes} onChange={(event) => setField('fieldNotes', event.target.value)} placeholder="입구 동선, 대기 환자, 주차 안내, 간판, 내부 분위기 등" />
             </label>
           </div>
           <div className="competitor-actions">
@@ -524,6 +840,22 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
                 <small>충돌도 근거</small>
               </div>
               <TextList items={ai.overlap} />
+            </div>
+
+            <div className="competitor-section">
+              <div className="competitor-section-title">
+                <span>경쟁 약점 → 우리 기회</span>
+                <small>수동 리뷰 키워드 기반</small>
+              </div>
+              <OpportunityList items={ai.opportunityAnalysis || []} />
+            </div>
+
+            <div className="competitor-section">
+              <div className="competitor-section-title">
+                <span>임장 자동 체크리스트</span>
+                <small>공백 데이터 보강</small>
+              </div>
+              <FieldChecklist items={ai.fieldChecklist || []} />
             </div>
 
             <div className="competitor-section">

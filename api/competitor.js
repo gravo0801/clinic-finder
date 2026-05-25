@@ -303,28 +303,345 @@ const countEquipmentHits = (official, keywords) => {
   return keywords.filter((keyword) => text.includes(keyword.toLowerCase())).length
 }
 
+const GRAVO_CONCEPTS = {
+  CHECKUP_SPECIALIZED: {
+    label: '검진/내시경 특화',
+    weight: 1,
+    summary: '건강검진·내시경 수요를 직접 흡수할 가능성이 큽니다.',
+  },
+  GENERAL_365: {
+    label: '365형 일반 의원',
+    weight: 0.8,
+    summary: '야간·주말·다과목 운영으로 1차진료 수요와 겹칠 수 있습니다.',
+  },
+  FAMILY_MEDICINE: {
+    label: '가정의학/1차진료형',
+    weight: 0.9,
+    summary: '가정의학과 기반의 1차진료 영역이 직접 겹칩니다.',
+  },
+  INTERNAL_MEDICINE: {
+    label: '내과 일반형',
+    weight: 0.8,
+    summary: '내과 외래와 만성질환 관리 수요가 부분적으로 겹칩니다.',
+  },
+  CHRONIC_CARE: {
+    label: '만성질환 관리형',
+    weight: 0.6,
+    summary: '고혈압·당뇨 등 반복 내원 수요를 두고 부분 경쟁합니다.',
+  },
+  ONCOLOGY_FOLLOWUP: {
+    label: '암케어/종양 추적형',
+    weight: 0.8,
+    summary: '암 치료 후 관리·상담 수요와 충돌할 수 있습니다.',
+  },
+  AESTHETIC_NONINSURED: {
+    label: '미용/비급여 특화',
+    weight: 0.15,
+    summary: '비급여 중심이지만 Gravo 핵심 콘셉트와 직접 충돌은 낮습니다.',
+  },
+  ORTHO_REHAB: {
+    label: '정형/재활 특화',
+    weight: 0.15,
+    summary: '주요 수요가 달라 직접 경쟁도는 낮습니다.',
+  },
+  OTHER: {
+    label: '기타/판단보류',
+    weight: 0.35,
+    summary: '현재 공개 신호만으로 콘셉트 분류가 제한적입니다.',
+  },
+}
+
+const NEGATIVE_PATTERNS = [
+  {
+    key: 'WAIT_TIME',
+    label: '대기시간 불만',
+    keywords: ['대기', '기다', '오래', '1시간', '2시간', '줄'],
+    opportunity: '예약제, 대기 알림, 시간대별 검진 동선으로 차별화 가능',
+  },
+  {
+    key: 'DOCTOR_MANNER',
+    label: '설명/친절 불만',
+    keywords: ['불친절', '무뚝뚝', '설명없', '설명 없', '귀찮', '대충'],
+    opportunity: '충분한 설명, 검사 전후 상담, 암케어 상담 시간을 강점으로 전환',
+  },
+  {
+    key: 'PRICE',
+    label: '가격/과잉진료 의심',
+    keywords: ['비싸', '과잉', '강요', '바가지', '추가금'],
+    opportunity: '비급여 가격표와 검진 패키지를 투명하게 공개해 신뢰 확보',
+  },
+  {
+    key: 'FACILITY',
+    label: '시설/주차 불편',
+    keywords: ['낡', '좁', '불편', '주차', '노후', '엘리베이터'],
+    opportunity: '쾌적한 내시경 동선, 주차 안내, 신축 인테리어로 즉각 차별화',
+  },
+]
+
+const truthyManual = (value) => ['yes', 'true', 'on', '있음', '운영', '노출'].includes(String(value || '').toLowerCase())
+const falseyManual = (value) => ['no', 'false', 'off', '없음', '미운영', '미노출'].includes(String(value || '').toLowerCase())
+
+const distanceDecay = (distanceM) => {
+  if (distanceM === null || distanceM === undefined) return 0.55
+  if (distanceM < 200) return 1
+  if (distanceM < 500) return 0.8
+  if (distanceM < 1000) return 0.5
+  return 0.3
+}
+
+const gradeFromScore = (score) => {
+  if (score >= 82) return '매우 높음'
+  if (score >= 66) return '높음'
+  if (score >= 45) return '보통'
+  if (score >= 25) return '낮음'
+  return '판단보류'
+}
+
+const scoreOrFallback = (value, fallback, min = 0, max = 100) => {
+  const parsed = toNumber(value)
+  return parsed === null ? fallback : clamp(Math.round(parsed), min, max)
+}
+
+const buildSignalText = ({ clinic, manualReview, officialData, webSignals }) => textBlob(
+  clinic.name,
+  clinic.dept,
+  clinic.type,
+  clinic.address,
+  officialData.departments?.join(' '),
+  officialData.topDiseases?.join(' '),
+  officialData.specialCare?.join(' '),
+  JSON.stringify(officialData.medicalEquipment || []),
+  JSON.stringify(officialData.facility || []),
+  manualReview.positiveKeywords,
+  manualReview.negativeKeywords,
+  manualReview.doctorProfileMemo,
+  manualReview.website,
+  manualReview.nonInsuredMemo,
+  webSignals.blog?.items?.map((item) => `${item.title} ${item.description}`).join(' '),
+  webSignals.local?.items?.map((item) => `${item.title} ${item.description} ${item.category}`).join(' '),
+)
+
+const classifyClinicConcept = ({ clinic, manualReview, officialData, webSignals }) => {
+  const combined = buildSignalText({ clinic, manualReview, officialData, webSignals })
+  const scores = {
+    CHECKUP_SPECIALIZED: 0,
+    GENERAL_365: 0,
+    FAMILY_MEDICINE: 0,
+    INTERNAL_MEDICINE: 0,
+    CHRONIC_CARE: 0,
+    ONCOLOGY_FOLLOWUP: 0,
+    AESTHETIC_NONINSURED: 0,
+    ORTHO_REHAB: 0,
+    OTHER: 1,
+  }
+
+  if (hasAny(combined, ['검진', '건강검진', '내시경', '위대장', '수면', '초음파'])) scores.CHECKUP_SPECIALIZED += 8
+  if (countEquipmentHits(officialData, ['내시경', '초음파', '방사선', 'x-ray', '엑스선']) >= 2) scores.CHECKUP_SPECIALIZED += 4
+  if (hasAny(combined, ['365', '24시간', '야간', '주말', '공휴일', '응급'])) scores.GENERAL_365 += 8
+  if (hasAny(combined, ['가정의학', '패밀리', '가족'])) scores.FAMILY_MEDICINE += 8
+  if (hasAny(combined, ['내과', '소화기', '호흡기'])) scores.INTERNAL_MEDICINE += 7
+  if (hasAny(combined, ['고혈압', '당뇨', '고지혈', '만성질환', '생활습관'])) scores.CHRONIC_CARE += 6
+  if (hasAny(combined, ['종양', '암', '항암', '혈액종양', '암경험'])) scores.ONCOLOGY_FOLLOWUP += 8
+  if (hasAny(combined, ['피부', '레이저', 'ipl', '탈모', '비만', '리프팅', '보톡스', '필러'])) scores.AESTHETIC_NONINSURED += 8
+  if (hasAny(combined, ['정형', '재활', '통증', '도수', '체외충격파'])) scores.ORTHO_REHAB += 8
+
+  const sorted = Object.entries(scores)
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, score]) => ({ key, score, ...GRAVO_CONCEPTS[key] }))
+  const primary = sorted[0]?.score > 1 ? sorted[0] : { key: 'OTHER', score: 1, ...GRAVO_CONCEPTS.OTHER }
+  return {
+    primaryKey: primary.key,
+    label: primary.label,
+    collisionWeight: primary.weight,
+    confidence: clamp(Math.round(primary.score * 10), 20, 90),
+    summary: primary.summary,
+    signals: sorted.filter((item) => item.score >= 4).slice(0, 4).map((item) => item.label),
+  }
+}
+
+const calcMarketingScore = (manualReview, webSignals) => {
+  let score = 0
+  const notes = []
+  const blogCount = toNumber(manualReview.blogCount)
+  const followers = toNumber(manualReview.instagramFollowers)
+  const homepageQuality = toNumber(manualReview.homepageQuality)
+
+  if (truthyManual(manualReview.naverAd)) { score += 25; notes.push('네이버 광고 노출 수동 확인') }
+  if (blogCount !== null && blogCount > 50) { score += 20; notes.push('블로그 게시글 50건 초과') }
+  else if ((webSignals.blog?.total || 0) >= 50) { score += 12; notes.push('블로그 검색량 50건 이상') }
+  else if ((webSignals.blog?.total || 0) >= 10) { score += 6; notes.push('블로그 검색량 일부 존재') }
+  if (truthyManual(manualReview.instagramActive)) { score += 10; notes.push('인스타그램 운영') }
+  if (followers !== null && followers >= 1000) { score += 8; notes.push('인스타 팔로워 1천명 이상') }
+  if (manualReview.website) score += 5
+  if (homepageQuality !== null && homepageQuality >= 3) { score += 15; notes.push('홈페이지 품질 양호') }
+  if (truthyManual(manualReview.mamcafeMention)) { score += 10; notes.push('지역 커뮤니티 언급') }
+  if (truthyManual(manualReview.youtubeActive)) { score += 20; notes.push('유튜브 채널 운영') }
+
+  return {
+    score: clamp(score, 0, 100),
+    label: gradeFromScore(score),
+    notes: notes.length ? notes : ['수동 마케팅 신호가 아직 부족합니다.'],
+  }
+}
+
+const estimateNonInsuredSignal = ({ clinic, manualReview, officialData, combined }) => {
+  let score = 10
+  const signals = []
+  const region = clean(clinic.address)
+  const priceInputs = [
+    manualReview.nonInsuredStomachEndoscopy,
+    manualReview.nonInsuredColonEndoscopy,
+    manualReview.checkupPackagePrice,
+    manualReview.ivTherapyPrice,
+  ].filter((value) => toNumber(value) !== null).length
+
+  if (hasAny(combined, ['내시경', '위대장', '수면', '검진', '건강검진'])) { score += 25; signals.push('검진/내시경 포지셔닝') }
+  if (countEquipmentHits(officialData, ['내시경']) >= 1) { score += 18; signals.push('내시경 장비 신호') }
+  if (countEquipmentHits(officialData, ['초음파']) >= 1) { score += 10; signals.push('초음파 장비 신호') }
+  if (countEquipmentHits(officialData, ['레이저', 'ipl', '체외충격파']) >= 1) { score += 10; signals.push('비급여 장비 신호') }
+  if (hasAny(combined, ['수액', '영양', '비만', '예방접종'])) { score += 8; signals.push('비급여 진료 키워드') }
+  if (priceInputs > 0) { score += priceInputs * 6; signals.push(`비급여 가격 수동 입력 ${priceInputs}개`) }
+  if (hasAny(region, ['강남', '서초', '송파'])) { score += 12; signals.push('고소득권역 보정') }
+  else if (hasAny(region, ['마포', '용산', '성동', '광진', '영등포'])) { score += 8; signals.push('도심/직주혼합권 보정') }
+
+  const finalScore = clamp(score, 0, 100)
+  const shareRange =
+    finalScore >= 75 ? '40~55%' :
+    finalScore >= 58 ? '30~45%' :
+    finalScore >= 38 ? '20~35%' :
+    '판단보류'
+
+  return {
+    score: finalScore,
+    label: gradeFromScore(finalScore),
+    shareRange,
+    signals: signals.length ? signals : ['비급여 신호 부족'],
+    confidence: clamp(35 + priceInputs * 12 + Math.min(signals.length, 4) * 8, 25, 85),
+  }
+}
+
+const classifyManualTrend = (manualReview) => {
+  const years = [2022, 2023, 2024]
+  const yearly = years
+    .map((year) => ({ year, value: toNumber(manualReview[`trend${year}`]) }))
+    .filter((item) => item.value !== null)
+    .map((item, index, arr) => {
+      const prev = index > 0 ? arr[index - 1].value : null
+      return {
+        ...item,
+        deltaPct: prev && prev > 0 ? Math.round(((item.value - prev) / prev) * 1000) / 10 : null,
+      }
+    })
+
+  if (yearly.length < 2) {
+    return {
+      label: '판단보류',
+      signal: 'neutral',
+      growthRate: null,
+      yearly,
+      summary: '연도별 진료량/청구건수 수동 입력이 부족합니다.',
+    }
+  }
+
+  const first = yearly[0].value
+  const last = yearly[yearly.length - 1].value
+  const growthRate = first > 0 ? (last - first) / first : 0
+  if (growthRate > 0.15) {
+    return { label: '성장 중', signal: 'positive', growthRate, yearly, summary: '최근 입력값 기준 성장세가 관찰됩니다.' }
+  }
+  if (growthRate > -0.05) {
+    return { label: '정체', signal: 'neutral', growthRate, yearly, summary: '최근 입력값 기준 큰 성장 없이 정체에 가깝습니다.' }
+  }
+  return { label: '하락 중', signal: 'warning', growthRate, yearly, summary: '최근 입력값 기준 진료량 하락 신호가 있습니다.' }
+}
+
+const findWeaknessOpportunities = (manualReview) => {
+  const negative = textBlob(manualReview.negativeKeywords, manualReview.legalIssueMemo)
+  return NEGATIVE_PATTERNS
+    .map((pattern) => {
+      const matches = pattern.keywords.filter((keyword) => negative.includes(keyword.toLowerCase()))
+      if (!matches.length) return null
+      return {
+        key: pattern.key,
+        label: pattern.label,
+        evidence: matches.slice(0, 4).join(', '),
+        opportunity: pattern.opportunity,
+      }
+    })
+    .filter(Boolean)
+}
+
+const buildFieldChecklist = ({ manualReview, officialData, trendAnalysis, nonInsuredSignal }) => {
+  const items = []
+  const hasPrice = [
+    manualReview.nonInsuredStomachEndoscopy,
+    manualReview.nonInsuredColonEndoscopy,
+    manualReview.checkupPackagePrice,
+    manualReview.ivTherapyPrice,
+  ].some((value) => toNumber(value) !== null)
+
+  if (toNumber(manualReview.noonPatientCount) === null) {
+    items.push({
+      priority: 'HIGH',
+      task: '점심시간 환자 수 카운트',
+      method: '12:00~13:30 사이 30분간 입·퇴장 흐름 기록',
+      effect: '환자 흡입력과 매출 잠재력 신뢰도 상승',
+    })
+  }
+  if (!hasPrice && nonInsuredSignal.score >= 35) {
+    items.push({
+      priority: 'HIGH',
+      task: '비급여 가격표 확인',
+      method: '홈페이지, 원내 게시판, 상담 동선에서 검진/내시경/수액 가격 확인',
+      effect: '비급여 비중 추정 신뢰도 상승',
+    })
+  }
+  if (toNumber(manualReview.parkingSpots) === null) {
+    items.push({
+      priority: 'MEDIUM',
+      task: '주차 공간과 주차 방식 확인',
+      method: '자주식/기계식/발렛/제휴 주차 여부와 안내 품질 확인',
+      effect: '검진 환자 접근성 평가 보강',
+    })
+  }
+  if (!officialData.medicalEquipment?.length) {
+    items.push({
+      priority: 'MEDIUM',
+      task: '내시경실·초음파·X-ray 장비 현장 확인',
+      method: '홈페이지 사진, 원내 안내, HIRA 상세정보 교차 확인',
+      effect: '검진 특화 여부 판정 보강',
+    })
+  }
+  if (trendAnalysis.signal === 'warning') {
+    items.push({
+      priority: 'HIGH',
+      task: '원장 변경·리모델링·간판 교체 흔적 확인',
+      method: '현장 간판, 블로그 과거 글, 플레이스 사진 날짜 비교',
+      effect: '하락 원인과 시장 진입 기회 파악',
+    })
+  }
+
+  return items.sort((a, b) => (a.priority === b.priority ? 0 : a.priority === 'HIGH' ? -1 : 1))
+}
+
 const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, webSignals, sources }) => {
   const reviewCount = toNumber(manualReview.reviewCount) || 0
   const reviewRating = toNumber(manualReview.rating)
   const distance = toNumber(clinic.distance)
-  const combined = textBlob(
-    clinic.name,
-    clinic.dept,
-    clinic.type,
-    officialData.departments?.join(' '),
-    officialData.topDiseases?.join(' '),
-    manualReview.positiveKeywords,
-    manualReview.negativeKeywords,
-    manualReview.doctorProfileMemo,
-    webSignals.blog?.items?.map((item) => item.title).join(' '),
-    webSignals.local?.items?.map((item) => item.description).join(' '),
-  )
+  const combined = buildSignalText({ clinic, manualReview, officialData, webSignals })
+  const clinicConcept = classifyClinicConcept({ clinic, manualReview, officialData, webSignals })
+  const marketingSignal = calcMarketingScore(manualReview, webSignals)
+  const nonInsuredSignal = estimateNonInsuredSignal({ clinic, manualReview, officialData, combined })
+  const trendAnalysis = classifyManualTrend(manualReview)
+  const opportunityAnalysis = findWeaknessOpportunities(manualReview)
+  const fieldChecklist = buildFieldChecklist({ manualReview, officialData, trendAnalysis, nonInsuredSignal })
 
   let medical = 7
   if (hasAny(combined, ['내과', '가정의학', '소화기', '검진'])) medical += 7
   if ((officialData.specialists || []).length > 0) medical += 5
   if (countEquipmentHits(officialData, ['내시경', '초음파', 'x-ray', '엑스선', '방사선', 'ct']) >= 1) medical += 5
   if ((officialData.specialCare || []).length > 0) medical += 3
+  if (clinicConcept.primaryKey === 'CHECKUP_SPECIALIZED') medical += 2
   medical = clamp(medical, 0, 25)
 
   let patientPull = 4
@@ -337,74 +654,90 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
   if ((webSignals.blog?.total || 0) >= 100) patientPull += 4
   else if ((webSignals.blog?.total || 0) >= 20) patientPull += 2
   if (distance !== null && distance <= 500) patientPull += 4
+  if (toNumber(manualReview.noonPatientCount) !== null) patientPull += 3
+  if (marketingSignal.score >= 70) patientPull += 2
   patientPull = clamp(patientPull, 0, 25)
 
   let profit = 3
-  if (hasAny(combined, ['검진', '건강검진', '내시경', '위대장', '수면'])) profit += 9
-  if (countEquipmentHits(officialData, ['내시경', '초음파', '방사선', 'x-ray']) >= 2) profit += 5
-  if (hasAny(combined, ['비만', '수액', '영양', '예방접종', '만성질환'])) profit += 3
+  profit += Math.round(nonInsuredSignal.score * 0.14)
+  if (hasAny(combined, ['만성질환', '검진', '내시경', '수액', '영양'])) profit += 3
   profit = clamp(profit, 0, 20)
 
-  let marketing = 2
-  if (manualReview.website) marketing += 3
-  if (manualReview.reviewLink) marketing += 2
-  if ((webSignals.local?.total || 0) > 0) marketing += 3
-  if ((webSignals.blog?.total || 0) >= 30) marketing += 4
-  if (hasAny(combined, ['예약', '상담', '블로그', '홈페이지'])) marketing += 3
-  marketing = clamp(marketing, 0, 15)
+  const marketing = clamp(Math.round(marketingSignal.score * 0.15), 0, 15)
 
   let stability = 10
   if (officialData.falseClaim?.possibleMatch) stability -= 7
   if (manualReview.legalIssueMemo) stability -= 4
   if ((officialData.openClose || []).some((item) => String(item.opCloTp || item.opCloTpNm || '').includes('폐'))) stability -= 6
+  if (trendAnalysis.signal === 'warning') stability -= 3
+  if (trendAnalysis.signal === 'positive') stability += 2
   if (officialData.detail?.estbDd) stability += 2
   if ((sources.detail?.status === 'ok' || sources.departments?.status === 'ok') && !officialData.falseClaim?.possibleMatch) stability += 3
   stability = clamp(stability, 0, 15)
 
   const competitorStrength = Math.round(medical + patientPull + profit + marketing + stability)
 
-  let collisionScore = 10
-  if (hasAny(combined, ['내과'])) collisionScore += 22
-  if (hasAny(combined, ['가정의학'])) collisionScore += 14
-  if (hasAny(combined, ['검진', '내시경'])) collisionScore += 20
-  if (distance !== null && distance <= 300) collisionScore += 20
-  else if (distance !== null && distance <= 700) collisionScore += 14
-  else if (distance !== null && distance <= 1000) collisionScore += 8
-  if (hasAny(combined, ['365', '24시간', '야간', '주말'])) collisionScore += 10
-  if (reviewCount >= 300) collisionScore += 8
-  const collision = clamp(collisionScore, 0, 100)
+  let collisionScore = clinicConcept.collisionWeight * distanceDecay(distance) * 88
+  if (hasAny(combined, ['검진', '내시경'])) collisionScore += 12
+  if (hasAny(combined, ['365', '24시간', '야간', '주말'])) collisionScore += 7
+  if (reviewCount >= 300) collisionScore += 5
+  if (clinicConcept.primaryKey === 'AESTHETIC_NONINSURED' || clinicConcept.primaryKey === 'ORTHO_REHAB') collisionScore -= 8
+  const collision = clamp(Math.round(collisionScore), 0, 100)
 
   const completedSources = Object.values(sources).filter((source) => source.status === 'ok').length
   const usableSources = Object.values(sources).filter((source) => !['pending', 'missing_key', 'blocked'].includes(source.status)).length
-  const manualInputs = [
-    manualReview.reviewCount,
-    manualReview.rating,
-    manualReview.positiveKeywords,
-    manualReview.negativeKeywords,
-    manualReview.reviewLink,
-    manualReview.website,
-    manualReview.doctorProfileMemo,
-    manualReview.legalIssueMemo,
-  ].filter((value) => value !== undefined && value !== null && String(value).trim() !== '').length
-  const confidence = clamp(Math.round((completedSources / Math.max(1, usableSources || 1)) * 45 + (manualInputs / 8) * 45 + (clinic.id ? 10 : 0)), 10, 95)
+  const manualValues = Object.values(manualReview)
+  const manualInputs = manualValues.filter((value) => (
+    value !== undefined &&
+    value !== null &&
+    String(value).trim() !== '' &&
+    String(value).trim() !== 'unknown'
+  )).length
+  const confidence = clamp(Math.round((completedSources / Math.max(1, usableSources || 1)) * 35 + (manualInputs / Math.max(1, manualValues.length)) * 50 + (clinic.id ? 10 : 0) + (trendAnalysis.yearly.length >= 2 ? 5 : 0)), 10, 95)
 
-  const revenuePotential =
-    confidence < 35 ? '판단보류' :
-    competitorStrength >= 76 && profit >= 14 ? '높음' :
-    competitorStrength >= 55 || profit >= 10 ? '보통' :
-    '낮음'
+  const revenueGradeScore = clamp(Math.round(nonInsuredSignal.score * 0.42 + patientPull * 1.2 + marketingSignal.score * 0.18 + stability * 0.7), 0, 100)
+  const revenuePotential = confidence < 35 ? '판단보류' : gradeFromScore(revenueGradeScore)
+  const revenueAnalysis = {
+    grade: revenuePotential,
+    score: revenueGradeScore,
+    confidence: clamp(Math.round((confidence + nonInsuredSignal.confidence) / 2), 10, 95),
+    tier1: {
+      title: '급여 진료량 신호',
+      level: trendAnalysis.yearly.length >= 2 ? trendAnalysis.label : (officialData.topDiseases?.length ? '공식 진료 단서 일부 수신' : '자료 부족'),
+      note: trendAnalysis.yearly.length >= 2
+        ? '수동 입력된 연도별 진료량/청구건수 흐름을 사용했습니다.'
+        : '현재 HIRA 상세 수신값만으로 절대 진료량은 산출하지 않습니다.',
+    },
+    tier2: {
+      title: '비급여 신호',
+      level: nonInsuredSignal.label,
+      shareRange: nonInsuredSignal.shareRange,
+      signals: nonInsuredSignal.signals,
+      confidence: nonInsuredSignal.confidence,
+    },
+    tier3: {
+      title: '시장 상대 위치',
+      level: reviewCount >= 500 ? '검색/리뷰 노출 상위권 가능성' : reviewCount >= 100 ? '중간권 이상 가능성' : '판단보류',
+      note: '동일권 의원 전체 청구건수 비교 API가 붙기 전까지는 리뷰·검색·거리 신호로 보수적으로 판단합니다.',
+    },
+    disclaimer: 'AI 추정값 · 공개 데이터와 수동 입력 기반 · 실제 매출 금액을 의미하지 않음',
+  }
 
   const strengths = []
+  if (clinicConcept.primaryKey !== 'OTHER') strengths.push(`${clinicConcept.label}로 분류됩니다. ${clinicConcept.summary}`)
   if (medical >= 18) strengths.push('공식 진료과/장비/전문의 신호가 강합니다.')
   if (patientPull >= 17) strengths.push('리뷰·검색량 기준 환자 흡입력 단서가 있습니다.')
-  if (profit >= 13) strengths.push('검진/내시경 또는 비급여형 진료 노출 가능성이 있습니다.')
-  if (marketing >= 10) strengths.push('온라인 노출과 상담 동선이 비교적 잘 잡혀 있을 가능성이 있습니다.')
+  if (profit >= 13) strengths.push(`비급여 신호가 ${nonInsuredSignal.label} 수준입니다.`)
+  if (marketing >= 10) strengths.push(`마케팅 집약도가 ${marketingSignal.label} 수준입니다.`)
+  if (trendAnalysis.signal === 'positive') strengths.push('수동 입력된 진료량 흐름상 성장 신호가 있습니다.')
 
   const risks = []
   if (collision >= 70) risks.push('우리 개원 콘셉트와 직접 충돌할 가능성이 큽니다.')
+  if (clinicConcept.primaryKey === 'CHECKUP_SPECIALIZED') risks.push('검진·내시경 수요에서 직접 경쟁할 가능성이 높습니다.')
   if (officialData.falseClaim?.possibleMatch) risks.push('거짓청구 공표 페이지 단서가 감지되어 원문 확인이 필요합니다.')
   if (manualReview.legalIssueMemo) risks.push('수동 입력된 법적/행정 이슈 메모가 있습니다.')
   if (reviewRating !== null && reviewRating < 4.0) risks.push('수동 입력 평점이 낮아 평판 리스크가 있습니다.')
+  if (trendAnalysis.signal === 'positive' && collision >= 55) risks.push('성장 중인 직접 경쟁자일 수 있어 진입 난도가 높아질 수 있습니다.')
 
   const checkItems = []
   if (!manualReview.reviewCount) checkItems.push('네이버/카카오/구글 리뷰 수와 최근 리뷰 흐름 확인')
@@ -412,6 +745,7 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
   if (!manualReview.website) checkItems.push('홈페이지/블로그/플레이스에서 검진·내시경 포지셔닝 확인')
   if (!officialData.medicalEquipment?.length) checkItems.push('내시경실, 초음파, X-ray 등 장비 보유 여부 현장 확인')
   if (!manualReview.legalIssueMemo && webSignals.issue?.total > 0) checkItems.push('뉴스 검색 결과의 법적/행정 이슈 여부 원문 확인')
+  fieldChecklist.slice(0, 3).forEach((item) => checkItems.push(`${item.priority}: ${item.task}`))
 
   return {
     competitorStrength,
@@ -425,10 +759,18 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
       marketing,
       stability,
     },
-    summary: `표면 신호 기준 경쟁력은 ${competitorStrength}점, 충돌도는 ${collision}점입니다. 실제 매출이 아닌 공개 데이터와 수동 리뷰 요약 기반의 상대 평가입니다.`,
+    clinicConcept,
+    revenueAnalysis,
+    trendAnalysis,
+    marketingSignal,
+    nonInsuredSignal,
+    opportunityAnalysis,
+    fieldChecklist,
+    summary: `${clinicConcept.label} 관점에서 표면 경쟁력은 ${competitorStrength}점, Gravo 콘셉트 충돌도는 ${collision}점입니다. 실제 매출이 아닌 공개 데이터와 수동 입력 기반의 상대 평가입니다.`,
     strengths: strengths.length ? strengths : ['현재 입력 기준으로 뚜렷한 강점은 제한적입니다. 추가 확인이 필요합니다.'],
     risks: risks.length ? risks : ['현재 입력 기준으로 강한 리스크 단서는 제한적입니다.'],
     overlap: [
+      clinicConcept.summary,
       hasAny(combined, ['내과', '가정의학']) ? '진료과목이 내과/가정의학과 개원 콘셉트와 겹칩니다.' : '진료과목 직접 충돌 신호는 제한적입니다.',
       hasAny(combined, ['검진', '내시경']) ? '검진/내시경 포지셔닝이 겹칠 수 있습니다.' : '검진/내시경 겹침은 추가 확인이 필요합니다.',
       distance !== null ? `후보지와의 거리는 약 ${distance}m입니다.` : '후보지와의 거리 정보가 없습니다.',
@@ -436,8 +778,9 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
     checkItems,
     sourceSummary: [
       `공식 소스 ${completedSources}개 수신`,
-      `수동 입력 ${manualInputs}/8개`,
+      `수동 입력 ${manualInputs}/${manualValues.length}개`,
       '리뷰 본문 자동 수집 없이 요약값만 사용',
+      '실제 매출 금액·의사 개인 실력·내부 직원 수준은 판단하지 않음',
     ],
   }
 }
@@ -449,14 +792,22 @@ const refineWithAI = async ({ spot, clinic, manualReview, officialData, webSigna
   const prompt = `당신은 내과/가정의학과/검진/내시경 공동개원 관점의 경쟁 의원 조사 애널리스트입니다.
 아래 공개 데이터와 사용자가 직접 입력한 리뷰 요약만 근거로 경쟁 의원의 표면 경쟁력을 평가하세요.
 실제 매출, 의사 실력, 내부 직원 수준은 단정하지 말고 "추정" 또는 "확인 필요"로 표현하세요.
+금지: 구체적 매출 금액, 의사 개인 실력 평가, 의료 사고 단정, 비교 광고성 표현.
+허용: 비급여 비중 범위, 시장 잠재력 등급, 공개 신호 기반 상대 평가.
 
 반드시 JSON만 응답하세요.
 {
   "competitorStrength": 0-100,
   "collisionScore": 0-100,
-  "revenuePotential": "높음|보통|낮음|판단보류",
+  "revenuePotential": "매우 높음|높음|보통|낮음|판단보류",
   "confidence": 0-100,
   "breakdown": { "medical": 0-25, "patientPull": 0-25, "profit": 0-20, "marketing": 0-15, "stability": 0-15 },
+  "clinicConcept": { "label": "검진/내시경 특화 등", "collisionWeight": 0-1, "confidence": 0-100, "summary": "문장", "signals": ["분류 단서"] },
+  "revenueAnalysis": { "grade": "매우 높음|높음|보통|낮음|판단보류", "score": 0-100, "confidence": 0-100, "tier1": {}, "tier2": {}, "tier3": {}, "disclaimer": "면책 문구" },
+  "trendAnalysis": { "label": "성장 중|정체|하락 중|판단보류", "signal": "positive|neutral|warning", "summary": "문장", "yearly": [] },
+  "marketingSignal": { "score": 0-100, "label": "매우 높음|높음|보통|낮음|판단보류", "notes": ["마케팅 단서"] },
+  "opportunityAnalysis": [{ "label": "약점 유형", "evidence": "근거", "opportunity": "우리 기회" }],
+  "fieldChecklist": [{ "priority": "HIGH|MEDIUM", "task": "임장 과제", "method": "확인 방법", "effect": "효과" }],
   "summary": "2~3문장",
   "strengths": ["강점"],
   "risks": ["리스크"],
@@ -489,10 +840,17 @@ ${JSON.stringify({ spot, clinic, manualReview, officialData, webSignals, sources
     return {
       ...fallback,
       ...parsed,
-      competitorStrength: clamp(Math.round(toNumber(parsed.competitorStrength) ?? fallback.competitorStrength), 0, 100),
-      collisionScore: clamp(Math.round(toNumber(parsed.collisionScore) ?? fallback.collisionScore), 0, 100),
-      confidence: clamp(Math.round(toNumber(parsed.confidence) ?? fallback.confidence), 0, 100),
-      revenuePotential: ['높음', '보통', '낮음', '판단보류'].includes(parsed.revenuePotential) ? parsed.revenuePotential : fallback.revenuePotential,
+      competitorStrength: scoreOrFallback(parsed.competitorStrength, fallback.competitorStrength),
+      collisionScore: scoreOrFallback(parsed.collisionScore, fallback.collisionScore),
+      confidence: scoreOrFallback(parsed.confidence, fallback.confidence),
+      revenuePotential: ['매우 높음', '높음', '보통', '낮음', '판단보류'].includes(parsed.revenuePotential) ? parsed.revenuePotential : fallback.revenuePotential,
+      clinicConcept: { ...fallback.clinicConcept, ...(parsed.clinicConcept || {}) },
+      revenueAnalysis: { ...fallback.revenueAnalysis, ...(parsed.revenueAnalysis || {}) },
+      trendAnalysis: { ...fallback.trendAnalysis, ...(parsed.trendAnalysis || {}) },
+      marketingSignal: { ...fallback.marketingSignal, ...(parsed.marketingSignal || {}) },
+      nonInsuredSignal: fallback.nonInsuredSignal,
+      opportunityAnalysis: Array.isArray(parsed.opportunityAnalysis) ? parsed.opportunityAnalysis : fallback.opportunityAnalysis,
+      fieldChecklist: Array.isArray(parsed.fieldChecklist) ? parsed.fieldChecklist : fallback.fieldChecklist,
       aiNote: 'Claude 분석 적용',
     }
   } catch (error) {
@@ -512,6 +870,8 @@ export default async function handler(req, res) {
 
   const safeClinic = {
     id: clinic.id,
+    hiraId: clean(clinic.hiraId),
+    source: clean(clinic.source),
     name: clean(clinic.name),
     type: clean(clinic.type),
     dept: clean(clinic.dept),
@@ -521,6 +881,7 @@ export default async function handler(req, res) {
     lng: clinic.lng,
     distance: clinic.distance,
     isCompetitor: !!clinic.isCompetitor,
+    webLink: clean(clinic.webLink),
   }
 
   const safeManual = {
@@ -532,6 +893,27 @@ export default async function handler(req, res) {
     website: clean(manualReview.website),
     doctorProfileMemo: clean(manualReview.doctorProfileMemo),
     legalIssueMemo: clean(manualReview.legalIssueMemo),
+    naverAd: clean(manualReview.naverAd),
+    blogCount: clean(manualReview.blogCount),
+    instagramActive: clean(manualReview.instagramActive),
+    instagramFollowers: clean(manualReview.instagramFollowers),
+    homepageQuality: clean(manualReview.homepageQuality),
+    youtubeActive: clean(manualReview.youtubeActive),
+    mamcafeMention: clean(manualReview.mamcafeMention),
+    nonInsuredStomachEndoscopy: clean(manualReview.nonInsuredStomachEndoscopy),
+    nonInsuredColonEndoscopy: clean(manualReview.nonInsuredColonEndoscopy),
+    checkupPackagePrice: clean(manualReview.checkupPackagePrice),
+    ivTherapyPrice: clean(manualReview.ivTherapyPrice),
+    nonInsuredMemo: clean(manualReview.nonInsuredMemo),
+    trend2022: clean(manualReview.trend2022),
+    trend2023: clean(manualReview.trend2023),
+    trend2024: clean(manualReview.trend2024),
+    noonPatientCount: clean(manualReview.noonPatientCount),
+    parkingSpots: clean(manualReview.parkingSpots),
+    parkingType: clean(manualReview.parkingType),
+    signVisibility: clean(manualReview.signVisibility),
+    facilityAge: clean(manualReview.facilityAge),
+    fieldNotes: clean(manualReview.fieldNotes),
   }
 
   try {
