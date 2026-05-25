@@ -848,6 +848,7 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
   .sidebar-header { padding: 18px 14px 10px; display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; cursor: pointer; touch-action: manipulation; }
   .sidebar.collapsed { transform: translateY(calc(100% - var(--mobile-sidebar-peek) - env(safe-area-inset-bottom))); }
   .sidebar.collapsed .spot-list { pointer-events: none; }
+  .sidebar.collapsed .logo-sub { display: none; }
   .sidebar.collapsed::before { background: rgba(255,255,255,0.36); }
   .logo { min-width: 0; gap: 8px; }
   .logo-icon { font-size: 22px; }
