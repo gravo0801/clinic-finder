@@ -42,13 +42,15 @@ export default function MapView({
   spots, centerOn, selectedSpot, newSpotCoords,
   markedClinics = [],
   savedClinics = [],
-  onMapClick, onSpotClick, onClinicClick
+  savedBuildings = [],
+  onMapClick, onSpotClick, onClinicClick, onBuildingClick
 }) {
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef({})
   const clinicMarkersRef = useRef({})
   const savedClinicMarkersRef = useRef({})
+  const buildingMarkersRef = useRef({})
   const tempMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
 
@@ -165,6 +167,31 @@ export default function MapView({
       savedClinicMarkersRef.current[clinic.id] = marker
     })
   }, [savedClinics, mapReady, onClinicClick])
+
+  // 저장한 메디컬 빌딩 마커
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.naver?.maps) return
+
+    Object.values(buildingMarkersRef.current).forEach((m) => m.setMap(null))
+    buildingMarkersRef.current = {}
+
+    savedBuildings.forEach((building) => {
+      if (!building.lat || !building.lng) return
+      const html = makeClinicMarkerHtml('🏢', '#0A84FF', building.name || '메디컬 빌딩')
+      const marker = new window.naver.maps.Marker({
+        position: new window.naver.maps.LatLng(building.lat, building.lng),
+        map: mapInstanceRef.current,
+        icon: { content: html, anchor: new window.naver.maps.Point(16, 16) },
+        title: building.name,
+        zIndex: 62,
+      })
+      window.naver.maps.Event.addListener(marker, 'click', (e) => {
+        e.domEvent?.stopPropagation?.()
+        onBuildingClick?.(building)
+      })
+      buildingMarkersRef.current[building.id] = marker
+    })
+  }, [savedBuildings, mapReady, onBuildingClick])
 
   // 임시 마커
   useEffect(() => {

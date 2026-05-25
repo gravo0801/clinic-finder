@@ -11,22 +11,30 @@ import MigrationBanner from './components/MigrationBanner'
 import AreaAnalysisPanel from './components/AreaAnalysisPanel'
 import CompetitorReportPanel from './components/CompetitorReportPanel'
 import ClinicSearchPanel from './components/ClinicSearchPanel'
-import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics, subscribeSavedClinics } from './firebase'
+import SavedClinicList from './components/SavedClinicList'
+import BuildingList from './components/BuildingList'
+import BuildingWatchPanel from './components/BuildingWatchPanel'
+import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics, subscribeSavedClinics, subscribeSavedBuildings } from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
   const [selectedSpot, setSelectedSpot] = useState(null)
   const [panelMode, setPanelMode] = useState(null)
   const [newCoords, setNewCoords] = useState(null)
+  const [buildingCoords, setBuildingCoords] = useState(null)
   const [centerOn, setCenterOn] = useState(null)
   const [nearbyClinics, setNearbyClinics] = useState([])
   const [markedClinics, setMarkedClinics] = useState([])
   const [savedClinics, setSavedClinics] = useState([])
+  const [savedBuildings, setSavedBuildings] = useState([])
   const [selectedClinic, setSelectedClinic] = useState(null)
+  const [selectedBuilding, setSelectedBuilding] = useState(null)
+  const [activeSidebarTab, setActiveSidebarTab] = useState('spots')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => subscribeSpots(setSpots), [])
   useEffect(() => subscribeSavedClinics(setSavedClinics), [])
+  useEffect(() => subscribeSavedBuildings(setSavedBuildings), [])
 
   useEffect(() => {
     if (!selectedSpot?.id) {
@@ -38,6 +46,14 @@ export default function App() {
 
   const handleMapClick = (lat, lng) => {
     setSidebarCollapsed(true)
+    if (activeSidebarTab === 'buildings') {
+      setBuildingCoords({ lat, lng })
+      setSelectedBuilding(null)
+      setSelectedSpot(null)
+      setSelectedClinic(null)
+      setPanelMode('buildingNew')
+      return
+    }
     setNewCoords({ lat, lng })
     setSelectedSpot(null)
     setPanelMode('new')
@@ -78,13 +94,22 @@ export default function App() {
   const handleCompareOpen = () => {
     setSelectedSpot(null)
     setSelectedClinic(null)
+    setSelectedBuilding(null)
     setPanelMode('compare')
   }
 
   const handleClinicSearchOpen = () => {
     setSelectedSpot(null)
     setSelectedClinic(null)
+    setSelectedBuilding(null)
     setPanelMode('clinicSearch')
+  }
+
+  const handleRecoveryOpen = () => {
+    setSelectedSpot(null)
+    setSelectedClinic(null)
+    setSelectedBuilding(null)
+    setPanelMode('recovery')
   }
 
   const handleCompetitorOpen = (spot, clinic) => {
@@ -97,6 +122,7 @@ export default function App() {
   const handleSavedClinicOpen = (clinic) => {
     setSelectedSpot(null)
     setSelectedClinic(clinic)
+    setSelectedBuilding(null)
     setPanelMode('clinicReport')
     if (clinic.lat && clinic.lng) setCenterOn({ lat: clinic.lat, lng: clinic.lng })
   }
@@ -107,6 +133,22 @@ export default function App() {
       return
     }
     handleSavedClinicOpen(clinic)
+  }
+
+  const handleBuildingAdd = () => {
+    setSelectedSpot(null)
+    setSelectedClinic(null)
+    setSelectedBuilding(null)
+    setBuildingCoords(centerOn)
+    setPanelMode('buildingNew')
+  }
+
+  const handleBuildingOpen = (building) => {
+    setSelectedSpot(null)
+    setSelectedClinic(null)
+    setSelectedBuilding(building)
+    setPanelMode('buildingEdit')
+    if (building.lat && building.lng) setCenterOn({ lat: building.lat, lng: building.lng })
   }
 
   const handleSaveNew = async (data) => {
@@ -131,7 +173,9 @@ export default function App() {
     setPanelMode(null)
     setSelectedSpot(null)
     setSelectedClinic(null)
+    setSelectedBuilding(null)
     setNewCoords(null)
+    setBuildingCoords(null)
   }
 
   const handleSearchSelect = (place) => {
@@ -180,21 +224,60 @@ export default function App() {
             >
               후보지 비교
             </button>
+            <button
+              className="sidebar-action subtle"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleRecoveryOpen()
+              }}
+            >
+              복구
+            </button>
           </div>
         </div>
 
-        <SpotList
-          spots={spots}
-          selectedId={selectedSpot?.id}
-          onSelect={handleSpotSelect}
-          onNearby={handleNearbyOpen}
-          onAI={handleAIOpen}
-          onChecklist={handleChecklistOpen}
-        />
+        <div className="sidebar-tabs">
+          <button className={activeSidebarTab === 'spots' ? 'active' : ''} onClick={() => setActiveSidebarTab('spots')}>지역</button>
+          <button className={activeSidebarTab === 'clinics' ? 'active' : ''} onClick={() => setActiveSidebarTab('clinics')}>경쟁의원</button>
+          <button className={activeSidebarTab === 'buildings' ? 'active' : ''} onClick={() => setActiveSidebarTab('buildings')}>건물</button>
+        </div>
+
+        {activeSidebarTab === 'spots' && (
+          <SpotList
+            spots={spots}
+            selectedId={selectedSpot?.id}
+            onSelect={handleSpotSelect}
+            onNearby={handleNearbyOpen}
+            onAI={handleAIOpen}
+            onChecklist={handleChecklistOpen}
+          />
+        )}
+
+        {activeSidebarTab === 'clinics' && (
+          <SavedClinicList
+            clinics={savedClinics}
+            selectedId={selectedClinic?.id}
+            onSelect={handleSavedClinicOpen}
+            onSearch={handleClinicSearchOpen}
+          />
+        )}
+
+        {activeSidebarTab === 'buildings' && (
+          <>
+            <div className="sidebar-list-action">
+              <button onClick={handleBuildingAdd}>메디컬 빌딩 저장</button>
+            </div>
+            <BuildingList
+              buildings={savedBuildings}
+              selectedId={selectedBuilding?.id}
+              onSelect={handleBuildingOpen}
+              onAdd={handleBuildingAdd}
+            />
+          </>
+        )}
       </aside>
 
       <main className="map-area">
-        <MigrationBanner />
         <div className="map-searchbar">
           <SearchBar onSelectPlace={handleSearchSelect} />
         </div>
@@ -205,9 +288,11 @@ export default function App() {
           newSpotCoords={newCoords}
           markedClinics={markedClinics}
           savedClinics={savedClinics}
+          savedBuildings={savedBuildings}
           onMapClick={handleMapClick}
           onSpotClick={handleSpotSelect}
           onClinicClick={handleClinicMarkerClick}
+          onBuildingClick={handleBuildingOpen}
         />
         {spots.length === 0 && (
           <div className="map-hint">
@@ -258,6 +343,10 @@ export default function App() {
         <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
       )}
 
+      {panelMode === 'recovery' && (
+        <MigrationBanner onClose={handleClose} />
+      )}
+
       {panelMode === 'clinicSearch' && (
         <ClinicSearchPanel
           savedClinics={savedClinics}
@@ -281,6 +370,14 @@ export default function App() {
           clinic={selectedClinic}
           onClose={handleClose}
           standalone
+        />
+      )}
+
+      {(panelMode === 'buildingNew' || panelMode === 'buildingEdit') && (
+        <BuildingWatchPanel
+          building={selectedBuilding}
+          centerOn={buildingCoords || centerOn}
+          onClose={handleClose}
         />
       )}
     </div>

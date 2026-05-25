@@ -246,6 +246,49 @@ export const subscribeSavedClinic = (clinicId, callback) => {
   }
 }
 
+export const saveSavedBuilding = async (building) => {
+  const id = building.id || crypto.randomUUID()
+  const buildingRef = await userDoc('savedBuildings', id)
+  const existing = await getDoc(buildingRef)
+  const savedAt = existing.exists() && existing.data().savedAt
+    ? existing.data().savedAt
+    : serverTimestamp()
+  await setDoc(buildingRef, {
+    ...building,
+    id,
+    savedAt,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+  return id
+}
+
+export const deleteSavedBuilding = async (buildingId) => {
+  await deleteDoc(await userDoc('savedBuildings', buildingId))
+}
+
+export const subscribeSavedBuildings = (callback) => {
+  let unsubscribeBuildings = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback([])
+      return
+    }
+
+    if (unsubscribeBuildings) unsubscribeBuildings()
+    const buildingsCol = collection(db, 'users', user.uid, 'savedBuildings')
+    const buildingsQuery = query(buildingsCol, orderBy('savedAt', 'desc'))
+    unsubscribeBuildings = onSnapshot(buildingsQuery, (snap) => {
+      callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })))
+    })
+  })
+
+  return () => {
+    if (unsubscribeBuildings) unsubscribeBuildings()
+    unsubscribeAuth()
+  }
+}
+
 const copySubcollection = async (oldSpotId, newSpotId, subcollectionName) => {
   const sourceSnap = await getDocs(collection(db, 'spots', oldSpotId, subcollectionName))
   await Promise.all(sourceSnap.docs.map(async (sourceDoc) => {

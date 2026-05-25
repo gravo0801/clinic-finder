@@ -280,7 +280,7 @@ const fetchOfficialData = async (clinic) => {
     official.falseClaim = {
       checked: true,
       possibleMatch,
-      note: possibleMatch ? '거짓청구 명단 페이지에서 이름 또는 주소 단서가 감지되었습니다. 수동 확인이 필요합니다.' : '현재 공표 페이지에서 직접 일치 단서는 감지되지 않았습니다.',
+      note: possibleMatch ? '거짓청구 명단 페이지에서 이름 또는 주소 단서가 감지되었습니다. 원문 확인이 필요합니다.' : '현재 공표 페이지에서 직접 일치 단서는 감지되지 않았습니다.',
     }
     sources.falseClaim = emptySource('ok', '거짓청구 공표 페이지 확인')
   } catch (error) {
@@ -466,7 +466,7 @@ const calcMarketingScore = (manualReview, webSignals) => {
   const followers = toNumber(manualReview.instagramFollowers)
   const homepageQuality = toNumber(manualReview.homepageQuality)
 
-  if (truthyManual(manualReview.naverAd)) { score += 25; notes.push('네이버 광고 노출 수동 확인') }
+  if (truthyManual(manualReview.naverAd)) { score += 25; notes.push('네이버 광고 노출 확인') }
   if (blogCount !== null && blogCount > 50) { score += 20; notes.push('블로그 게시글 50건 초과') }
   else if ((webSignals.blog?.total || 0) >= 50) { score += 12; notes.push('블로그 검색량 50건 이상') }
   else if ((webSignals.blog?.total || 0) >= 10) { score += 6; notes.push('블로그 검색량 일부 존재') }
@@ -480,7 +480,7 @@ const calcMarketingScore = (manualReview, webSignals) => {
   return {
     score: clamp(score, 0, 100),
     label: gradeFromScore(score),
-    notes: notes.length ? notes : ['수동 마케팅 신호가 아직 부족합니다.'],
+    notes: notes.length ? notes : ['마케팅 신호가 아직 부족합니다.'],
   }
 }
 
@@ -500,7 +500,7 @@ const estimateNonInsuredSignal = ({ clinic, manualReview, officialData, combined
   if (countEquipmentHits(officialData, ['초음파']) >= 1) { score += 10; signals.push('초음파 장비 신호') }
   if (countEquipmentHits(officialData, ['레이저', 'ipl', '체외충격파']) >= 1) { score += 10; signals.push('비급여 장비 신호') }
   if (hasAny(combined, ['수액', '영양', '비만', '예방접종'])) { score += 8; signals.push('비급여 진료 키워드') }
-  if (priceInputs > 0) { score += priceInputs * 6; signals.push(`비급여 가격 수동 입력 ${priceInputs}개`) }
+  if (priceInputs > 0) { score += priceInputs * 6; signals.push(`비급여 가격 단서 ${priceInputs}개`) }
   if (hasAny(region, ['강남', '서초', '송파'])) { score += 12; signals.push('고소득권역 보정') }
   else if (hasAny(region, ['마포', '용산', '성동', '광진', '영등포'])) { score += 8; signals.push('도심/직주혼합권 보정') }
 
@@ -539,7 +539,7 @@ const classifyManualTrend = (manualReview) => {
       signal: 'neutral',
       growthRate: null,
       yearly,
-      summary: '연도별 진료량/청구건수 수동 입력이 부족합니다.',
+      summary: '연도별 진료량/청구건수 지표가 부족합니다.',
     }
   }
 
@@ -705,7 +705,7 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
       title: '급여 진료량 신호',
       level: trendAnalysis.yearly.length >= 2 ? trendAnalysis.label : (officialData.topDiseases?.length ? '공식 진료 단서 일부 수신' : '자료 부족'),
       note: trendAnalysis.yearly.length >= 2
-        ? '수동 입력된 연도별 진료량/청구건수 흐름을 사용했습니다.'
+        ? '저장된 연도별 진료량/청구건수 흐름을 사용했습니다.'
         : '현재 HIRA 상세 수신값만으로 절대 진료량은 산출하지 않습니다.',
     },
     tier2: {
@@ -720,7 +720,7 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
       level: reviewCount >= 500 ? '검색/리뷰 노출 상위권 가능성' : reviewCount >= 100 ? '중간권 이상 가능성' : '판단보류',
       note: '동일권 의원 전체 청구건수 비교 API가 붙기 전까지는 리뷰·검색·거리 신호로 보수적으로 판단합니다.',
     },
-    disclaimer: 'AI 추정값 · 공개 데이터와 수동 입력 기반 · 실제 매출 금액을 의미하지 않음',
+    disclaimer: 'AI 추정값 · 공개 데이터와 저장된 조사 단서 기반 · 실제 매출 금액을 의미하지 않음',
   }
 
   const strengths = []
@@ -729,19 +729,19 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
   if (patientPull >= 17) strengths.push('리뷰·검색량 기준 환자 흡입력 단서가 있습니다.')
   if (profit >= 13) strengths.push(`비급여 신호가 ${nonInsuredSignal.label} 수준입니다.`)
   if (marketing >= 10) strengths.push(`마케팅 집약도가 ${marketingSignal.label} 수준입니다.`)
-  if (trendAnalysis.signal === 'positive') strengths.push('수동 입력된 진료량 흐름상 성장 신호가 있습니다.')
+  if (trendAnalysis.signal === 'positive') strengths.push('저장된 진료량 흐름상 성장 신호가 있습니다.')
 
   const risks = []
   if (collision >= 70) risks.push('우리 개원 콘셉트와 직접 충돌할 가능성이 큽니다.')
   if (clinicConcept.primaryKey === 'CHECKUP_SPECIALIZED') risks.push('검진·내시경 수요에서 직접 경쟁할 가능성이 높습니다.')
   if (officialData.falseClaim?.possibleMatch) risks.push('거짓청구 공표 페이지 단서가 감지되어 원문 확인이 필요합니다.')
-  if (manualReview.legalIssueMemo) risks.push('수동 입력된 법적/행정 이슈 메모가 있습니다.')
-  if (reviewRating !== null && reviewRating < 4.0) risks.push('수동 입력 평점이 낮아 평판 리스크가 있습니다.')
+  if (manualReview.legalIssueMemo) risks.push('저장된 법적/행정 이슈 메모가 있습니다.')
+  if (reviewRating !== null && reviewRating < 4.0) risks.push('저장된 평점 단서가 낮아 평판 리스크가 있습니다.')
   if (trendAnalysis.signal === 'positive' && collision >= 55) risks.push('성장 중인 직접 경쟁자일 수 있어 진입 난도가 높아질 수 있습니다.')
 
   const checkItems = []
   if (!manualReview.reviewCount) checkItems.push('네이버/카카오/구글 리뷰 수와 최근 리뷰 흐름 확인')
-  if (!manualReview.doctorProfileMemo) checkItems.push('원장 약력, 전문의 여부, 주요 경력 수동 확인')
+  if (!manualReview.doctorProfileMemo) checkItems.push('원장 약력, 전문의 여부, 주요 경력 직접 확인')
   if (!manualReview.website) checkItems.push('홈페이지/블로그/플레이스에서 검진·내시경 포지셔닝 확인')
   if (!officialData.medicalEquipment?.length) checkItems.push('내시경실, 초음파, X-ray 등 장비 보유 여부 현장 확인')
   if (!manualReview.legalIssueMemo && webSignals.issue?.total > 0) checkItems.push('뉴스 검색 결과의 법적/행정 이슈 여부 원문 확인')
@@ -766,7 +766,7 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
     nonInsuredSignal,
     opportunityAnalysis,
     fieldChecklist,
-    summary: `${clinicConcept.label} 관점에서 표면 경쟁력은 ${competitorStrength}점, Gravo 콘셉트 충돌도는 ${collision}점입니다. 실제 매출이 아닌 공개 데이터와 수동 입력 기반의 상대 평가입니다.`,
+    summary: `${clinicConcept.label} 관점에서 표면 경쟁력은 ${competitorStrength}점, Gravo 콘셉트 충돌도는 ${collision}점입니다. 실제 매출이 아닌 공개 데이터와 저장된 조사 단서 기반의 상대 평가입니다.`,
     strengths: strengths.length ? strengths : ['현재 입력 기준으로 뚜렷한 강점은 제한적입니다. 추가 확인이 필요합니다.'],
     risks: risks.length ? risks : ['현재 입력 기준으로 강한 리스크 단서는 제한적입니다.'],
     overlap: [
@@ -778,7 +778,7 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
     checkItems,
     sourceSummary: [
       `공식 소스 ${completedSources}개 수신`,
-      `수동 입력 ${manualInputs}/${manualValues.length}개`,
+      `저장 조사 단서 ${manualInputs}/${manualValues.length}개`,
       '리뷰 본문 자동 수집 없이 요약값만 사용',
       '실제 매출 금액·의사 개인 실력·내부 직원 수준은 판단하지 않음',
     ],
@@ -812,7 +812,7 @@ const refineWithAI = async ({ spot, clinic, manualReview, officialData, webSigna
   "strengths": ["강점"],
   "risks": ["리스크"],
   "overlap": ["우리 개원과 겹치는 지점"],
-  "checkItems": ["현장/수동 확인 항목"],
+  "checkItems": ["현장/직접 확인 항목"],
   "sourceSummary": ["근거 요약"]
 }
 

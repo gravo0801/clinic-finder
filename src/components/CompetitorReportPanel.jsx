@@ -39,7 +39,7 @@ const AUTOCHECK_DEFAULTS = {
 }
 
 const DISCLAIMER_TEXTS = {
-  revenue: 'AI 추정값 · 공개 데이터와 수동 입력 기반 · 실제 매출 금액 아님',
+  revenue: 'AI 추정값 · 공개 데이터와 저장된 조사 단서 기반 · 실제 매출 금액 아님',
   review: '사용자 직접 입력 · 리뷰 본문 자동 수집 없음',
   score: '표면 신호 기반 추정 · 내부 경영 정보 미반영',
   general: '본 분석은 참고용이며 법적 효력이 없습니다.',
@@ -99,7 +99,7 @@ const parseSavedTime = (timestamp) => {
 }
 
 const getAutoCheckStatus = (report, autoCheck) => {
-  if (!autoCheck.enabled) return { label: '자동 체크 꺼짐', due: false, nextText: '수동 업데이트만 사용' }
+  if (!autoCheck.enabled) return { label: '자동 체크 꺼짐', due: false, nextText: '직접 업데이트만 사용' }
   const interval = Number(autoCheck.intervalDays || 30)
   const base = parseSavedTime(report.lastCheckedAt || report.generatedAt || report.updatedAt || report.savedAt)
   if (!base) return { label: '업데이트 필요', due: true, nextText: '아직 최신 체크 이력이 없습니다.' }
@@ -134,19 +134,6 @@ function MetricCard({ label, value, sub, tone = 'mid' }) {
       <b>{value}</b>
       {sub && <small>{sub}</small>}
     </div>
-  )
-}
-
-function SelectField({ label, value, onChange, options }) {
-  return (
-    <label>
-      <span>{label}</span>
-      <select className="business-input" value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-    </label>
   )
 }
 
@@ -324,7 +311,6 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   const [manualReview, setManualReview] = useState(MANUAL_DEFAULTS)
   const [autoCheck, setAutoCheck] = useState(AUTOCHECK_DEFAULTS)
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const standalone = !spot?.id
 
@@ -348,10 +334,6 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   const ai = current.aiResult
   const officialData = current.officialData
   const webSignals = current.webSignals || {}
-
-  const setField = (key, value) => {
-    setManualReview((prev) => ({ ...prev, [key]: value }))
-  }
 
   const setAutoCheckField = (key, value) => {
     setAutoCheck((prev) => ({ ...prev, [key]: value }))
@@ -397,22 +379,6 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
       return
     }
     await saveCompetitorReport(spot.id, clinic.id, report)
-  }
-
-  const handleSaveManual = async () => {
-    if (!clinic?.id) return
-    setSaving(true)
-    setError(null)
-    try {
-      await persistReport({
-        ...current,
-        ...buildBaseReport(),
-      })
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSaving(false)
-    }
   }
 
   const handleAnalyze = async () => {
@@ -535,13 +501,13 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
             <div className="competitor-section">
               <div className="competitor-section-title">
                 <span>마케팅 집약도와 트렌드</span>
-                <small>수동 입력 보강</small>
+                <small>공개 신호 기반</small>
               </div>
               <div className="signal-grid">
                 <div className="marketing-signal-card">
                   <span>마케팅 집약도</span>
                   <strong>{ai.marketingSignal?.score ?? '-'}점 · {ai.marketingSignal?.label || '판단보류'}</strong>
-                  <p>{(ai.marketingSignal?.notes || []).slice(0, 3).join(' · ') || '수동 확인 필요'}</p>
+                  <p>{(ai.marketingSignal?.notes || []).slice(0, 3).join(' · ') || '추가 확인 필요'}</p>
                 </div>
                 <TrendAnalysis data={ai.trendAnalysis} />
               </div>
@@ -590,178 +556,16 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
 
         <div className="competitor-section">
           <div className="competitor-section-title">
-            <span>평판 단서 수동 입력</span>
-            <small>리뷰 본문 자동 수집 제외</small>
+            <span>AI 자동 조사</span>
+            <small>공개 데이터 기반</small>
           </div>
-          <div className="competitor-form-grid">
-            <label>
-              <span>리뷰 수</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.reviewCount} onChange={(event) => setField('reviewCount', event.target.value)} placeholder="예: 450" />
-            </label>
-            <label>
-              <span>평점</span>
-              <input className="business-input" inputMode="decimal" value={manualReview.rating} onChange={(event) => setField('rating', event.target.value)} placeholder="예: 4.6" />
-            </label>
-            <label className="full">
-              <span>긍정 키워드</span>
-              <input className="business-input" value={manualReview.positiveKeywords} onChange={(event) => setField('positiveKeywords', event.target.value)} placeholder="친절, 대기 짧음, 설명 자세함" />
-            </label>
-            <label className="full">
-              <span>부정 키워드</span>
-              <input className="business-input" value={manualReview.negativeKeywords} onChange={(event) => setField('negativeKeywords', event.target.value)} placeholder="대기 길다, 불친절, 과잉진료 의심" />
-            </label>
-            <label className="full">
-              <span>리뷰 링크</span>
-              <input className="business-input" value={manualReview.reviewLink} onChange={(event) => setField('reviewLink', event.target.value)} placeholder="네이버/카카오/구글 리뷰 페이지 URL" />
-            </label>
-            <label className="full">
-              <span>홈페이지/블로그</span>
-              <input className="business-input" value={manualReview.website} onChange={(event) => setField('website', event.target.value)} placeholder="공식 홈페이지 또는 블로그 URL" />
-            </label>
-            <label className="full">
-              <span>원장 약력 메모</span>
-              <textarea className="business-textarea" value={manualReview.doctorProfileMemo} onChange={(event) => setField('doctorProfileMemo', event.target.value)} placeholder="전문의, 학력, 경력, 인증, 주요 진료 분야 등" />
-            </label>
-            <label className="full">
-              <span>법적/행정 이슈 메모</span>
-              <textarea className="business-textarea" value={manualReview.legalIssueMemo} onChange={(event) => setField('legalIssueMemo', event.target.value)} placeholder="뉴스, 공표자료, 소송/행정처분 의심 단서 등" />
-            </label>
-
-            <div className="competitor-form-subtitle full">마케팅 신호</div>
-            <SelectField
-              label="네이버 광고 노출"
-              value={manualReview.naverAd}
-              onChange={(value) => setField('naverAd', value)}
-              options={[
-                { value: 'unknown', label: '미확인' },
-                { value: 'yes', label: '노출됨' },
-                { value: 'no', label: '노출 안 됨' },
-              ]}
-            />
-            <label>
-              <span>블로그 게시글 수</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.blogCount} onChange={(event) => setField('blogCount', event.target.value)} placeholder="예: 80" />
-            </label>
-            <SelectField
-              label="인스타그램"
-              value={manualReview.instagramActive}
-              onChange={(value) => setField('instagramActive', value)}
-              options={[
-                { value: 'unknown', label: '미확인' },
-                { value: 'yes', label: '운영' },
-                { value: 'no', label: '미운영' },
-              ]}
-            />
-            <label>
-              <span>인스타 팔로워</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.instagramFollowers} onChange={(event) => setField('instagramFollowers', event.target.value)} placeholder="예: 1200" />
-            </label>
-            <label>
-              <span>홈페이지 품질</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.homepageQuality} onChange={(event) => setField('homepageQuality', event.target.value)} placeholder="1~5" />
-            </label>
-            <SelectField
-              label="유튜브"
-              value={manualReview.youtubeActive}
-              onChange={(value) => setField('youtubeActive', value)}
-              options={[
-                { value: 'unknown', label: '미확인' },
-                { value: 'yes', label: '운영' },
-                { value: 'no', label: '미운영' },
-              ]}
-            />
-            <SelectField
-              label="맘카페/지역 커뮤니티"
-              value={manualReview.mamcafeMention}
-              onChange={(value) => setField('mamcafeMention', value)}
-              options={[
-                { value: 'unknown', label: '미확인' },
-                { value: 'yes', label: '언급 있음' },
-                { value: 'no', label: '언급 없음' },
-              ]}
-            />
-
-            <div className="competitor-form-subtitle full">비급여·검진 가격 단서</div>
-            <label>
-              <span>위내시경 수면</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.nonInsuredStomachEndoscopy} onChange={(event) => setField('nonInsuredStomachEndoscopy', event.target.value)} placeholder="내부 참고용" />
-            </label>
-            <label>
-              <span>대장내시경 수면</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.nonInsuredColonEndoscopy} onChange={(event) => setField('nonInsuredColonEndoscopy', event.target.value)} placeholder="내부 참고용" />
-            </label>
-            <label>
-              <span>검진 패키지</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.checkupPackagePrice} onChange={(event) => setField('checkupPackagePrice', event.target.value)} placeholder="내부 참고용" />
-            </label>
-            <label>
-              <span>수액/영양주사</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.ivTherapyPrice} onChange={(event) => setField('ivTherapyPrice', event.target.value)} placeholder="내부 참고용" />
-            </label>
-            <label className="full">
-              <span>비급여 메모</span>
-              <textarea className="business-textarea" value={manualReview.nonInsuredMemo} onChange={(event) => setField('nonInsuredMemo', event.target.value)} placeholder="가격표 출처, 검진 패키지 구성, 수액/예방접종 노출 등" />
-            </label>
-
-            <div className="competitor-form-subtitle full">트렌드·임장 입력</div>
-            <label>
-              <span>2022 진료량 지표</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.trend2022} onChange={(event) => setField('trend2022', event.target.value)} placeholder="청구/리뷰/방문 지표" />
-            </label>
-            <label>
-              <span>2023 진료량 지표</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.trend2023} onChange={(event) => setField('trend2023', event.target.value)} placeholder="동일 기준 입력" />
-            </label>
-            <label>
-              <span>2024 진료량 지표</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.trend2024} onChange={(event) => setField('trend2024', event.target.value)} placeholder="동일 기준 입력" />
-            </label>
-            <label>
-              <span>점심시간 환자 수</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.noonPatientCount} onChange={(event) => setField('noonPatientCount', event.target.value)} placeholder="30분 카운트" />
-            </label>
-            <label>
-              <span>주차 대수</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.parkingSpots} onChange={(event) => setField('parkingSpots', event.target.value)} placeholder="예: 6" />
-            </label>
-            <SelectField
-              label="주차 방식"
-              value={manualReview.parkingType}
-              onChange={(value) => setField('parkingType', value)}
-              options={[
-                { value: 'unknown', label: '미확인' },
-                { value: 'self', label: '자주식' },
-                { value: 'mechanical', label: '기계식' },
-                { value: 'valet', label: '발렛/제휴' },
-                { value: 'street', label: '노상/불편' },
-              ]}
-            />
-            <label>
-              <span>간판 노출도</span>
-              <input className="business-input" inputMode="numeric" value={manualReview.signVisibility} onChange={(event) => setField('signVisibility', event.target.value)} placeholder="1~5" />
-            </label>
-            <SelectField
-              label="시설 체감"
-              value={manualReview.facilityAge}
-              onChange={(value) => setField('facilityAge', value)}
-              options={[
-                { value: 'unknown', label: '미확인' },
-                { value: 'new', label: '신축/깨끗' },
-                { value: 'mid', label: '보통' },
-                { value: 'old', label: '노후' },
-              ]}
-            />
-            <label className="full">
-              <span>임장 메모</span>
-              <textarea className="business-textarea" value={manualReview.fieldNotes} onChange={(event) => setField('fieldNotes', event.target.value)} placeholder="입구 동선, 대기 환자, 주차 안내, 간판, 내부 분위기 등" />
-            </label>
-          </div>
-          <div className="competitor-actions">
-            <button className="btn-reanalyze" onClick={handleSaveManual} disabled={saving || loading}>
-              {saving ? '저장 중...' : '수동 입력 저장'}
-            </button>
-            <button className="btn-analyze" onClick={handleAnalyze} disabled={loading || saving}>
-              {loading ? '리포트 생성 중...' : ai ? '최신 정보 업데이트' : 'AI 리포트 생성'}
+          <div className="auto-research-card">
+            <div>
+              <strong>{ai ? '저장된 AI 리포트가 있습니다' : '아직 AI 리포트가 없습니다'}</strong>
+              <p>HIRA 공식 정보, 네이버 검색 신호, 뉴스/블로그 단서를 수집해 리포트를 생성합니다. 네이버 플레이스 리뷰 본문 자동 크롤링은 약관 리스크 때문에 제외합니다.</p>
+            </div>
+            <button className="btn-analyze" onClick={handleAnalyze} disabled={loading}>
+              {loading ? '조사 중...' : ai ? 'AI 최신 조사 다시 실행' : 'AI 자동 조사 및 저장'}
             </button>
           </div>
           {error && <div className="ai-error"><p>{error}</p></div>}
@@ -845,7 +649,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
             <div className="competitor-section">
               <div className="competitor-section-title">
                 <span>경쟁 약점 → 우리 기회</span>
-                <small>수동 리뷰 키워드 기반</small>
+                <small>리뷰 키워드 기반</small>
               </div>
               <OpportunityList items={ai.opportunityAnalysis || []} />
             </div>
@@ -861,7 +665,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
             <div className="competitor-section">
               <div className="competitor-section-title">
                 <span>확인 필요</span>
-                <small>임장/수동 확인</small>
+                <small>임장/직접 확인</small>
               </div>
               <TextList items={ai.checkItems} />
             </div>
