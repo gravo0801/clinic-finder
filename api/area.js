@@ -1,4 +1,4 @@
-const API_TIMEOUT_MS = 8000
+const API_TIMEOUT_MS = 10000
 
 const sourceState = (enabled) => ({
   configured: Boolean(enabled),
@@ -63,6 +63,18 @@ const fetchJson = async (url, options) => {
   }
 }
 
+const fetchJsonRetry = async (url, options, attempts = 2) => {
+  let lastError
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await fetchJson(url, options)
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
 const itemsFrom = (payload) => {
   if (payload?.rawText || (typeof payload?.status === 'number' && payload.status >= 400)) return []
   const body = payload?.response?.body || payload?.body || payload
@@ -107,7 +119,7 @@ const getSgisAccess = async () => {
   const errors = []
   for (const baseUrl of sgisBaseUrls()) {
     try {
-      const tokenData = await fetchJson(
+      const tokenData = await fetchJsonRetry(
         `${baseUrl}/OpenAPI3/auth/authentication.json?consumer_key=${encodeURIComponent(serviceId)}&consumer_secret=${encodeURIComponent(securityKey)}`,
       )
       const token = tokenData.result?.accessToken
@@ -122,10 +134,14 @@ const getSgisAccess = async () => {
 }
 
 const buildRegionInfo = (source, data) => {
-  const admCode = String(data.admCode || data.adm_dr_cd || data.emdong_cd || data.cd || '')
+  const admCode = String(data.admCode || data.adm_cd || data.adm_dr_cd || data.emdong_cd || data.cd || '')
   const sidoCode = String(data.sido_cd || '')
   const sggCode = String(data.sgg_cd || '')
-  const lawdCd = String(data.lawdCd || (sggCode.length >= 5 ? sggCode.slice(0, 5) : ''))
+  const lawdCd = String(
+    data.lawdCd ||
+    (sggCode.length >= 5 ? sggCode.slice(0, 5) : '') ||
+    (sidoCode && sggCode.length === 3 ? `${sidoCode}${sggCode}` : ''),
+  )
   const extraCandidates = Array.isArray(data.sgisCandidates) ? data.sgisCandidates : []
 
   return {
@@ -200,7 +216,7 @@ const getSgisRegionInfo = async (lat, lng) => {
   if (!access?.token) return null
 
   const url = `${access.baseUrl}/OpenAPI3/addr/rgeocodewgs84.json?accessToken=${encodeURIComponent(access.token)}&x_coor=${lng}&y_coor=${lat}&addr_type=20`
-  const data = await fetchJson(url)
+  const data = await fetchJsonRetry(url)
   if (data.errCd && Number(data.errCd) !== 0) throw new Error(data.errMsg || 'SGIS 역지오코딩 실패')
 
   const result = Array.isArray(data.result) ? data.result[0] : data.result
@@ -266,11 +282,14 @@ const getSgisData = async (regionInfo, sources, warnings) => {
     const baseUrl = access.baseUrl
 
     for (const admCd of regionInfo.sgisCandidates) {
-      const [summary, gender, total] = await Promise.all([
-        fetchJson(`${baseUrl}/OpenAPI3/startupbiz/pplsummary.json?accessToken=${token}&adm_cd=${admCd}`),
-        fetchJson(`${baseUrl}/OpenAPI3/startupbiz/mfratiosummary.json?accessToken=${token}&adm_cd=${admCd}`),
-        fetchJson(`${baseUrl}/OpenAPI3/stats/population.json?accessToken=${token}&year=2020&adm_cd=${admCd}&low_search=0`),
+      const [summaryResult, genderResult, totalResult] = await Promise.allSettled([
+        fetchJsonRetry(`${baseUrl}/OpenAPI3/startupbiz/pplsummary.json?accessToken=${token}&adm_cd=${admCd}`),
+        fetchJsonRetry(`${baseUrl}/OpenAPI3/startupbiz/mfratiosummary.json?accessToken=${token}&adm_cd=${admCd}`),
+        fetchJsonRetry(`${baseUrl}/OpenAPI3/stats/population.json?accessToken=${token}&year=2020&adm_cd=${admCd}&low_search=0`),
       ])
+      const summary = summaryResult.status === 'fulfilled' ? summaryResult.value : {}
+      const gender = genderResult.status === 'fulfilled' ? genderResult.value : {}
+      const total = totalResult.status === 'fulfilled' ? totalResult.value : {}
       const age = summary.result?.[0]
       const sex = gender.result?.[0]
       const population = total.result?.[0]
