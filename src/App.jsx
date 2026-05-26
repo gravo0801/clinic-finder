@@ -14,6 +14,7 @@ import ClinicSearchPanel from './components/ClinicSearchPanel'
 import SavedClinicList from './components/SavedClinicList'
 import BuildingList from './components/BuildingList'
 import BuildingWatchPanel from './components/BuildingWatchPanel'
+import RevenueEstimatorPanel from './components/RevenueEstimatorPanel'
 import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics, subscribeSavedClinics, subscribeSavedBuildings } from './firebase'
 
 export default function App() {
@@ -116,6 +117,13 @@ export default function App() {
     setSelectedClinic(null)
     setSelectedBuilding(null)
     setPanelMode('compare')
+  }
+
+  const handleRevenueOpen = () => {
+    setSelectedSpot(null)
+    setSelectedClinic(null)
+    setSelectedBuilding(null)
+    setPanelMode('revenue')
   }
 
   const handleClinicSearchOpen = () => {
@@ -245,6 +253,15 @@ export default function App() {
               후보지 비교
             </button>
             <button
+              className="sidebar-action revenue"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleRevenueOpen()
+              }}
+            >
+              매출 추정
+            </button>
+            <button
               className="sidebar-action subtle"
               onClick={(event) => {
                 event.stopPropagation()
@@ -361,6 +378,10 @@ export default function App() {
 
       {panelMode === 'compare' && (
         <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
+      )}
+
+      {panelMode === 'revenue' && (
+        <RevenueEstimatorPanel spots={spots} onClose={handleClose} onSelectSpot={handleSpotSelect} />
       )}
 
       {panelMode === 'recovery' && (

@@ -1,0 +1,346 @@
+.sidebar-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sidebar-action.revenue {
+  background: rgba(52, 199, 89, 0.15);
+  border-color: rgba(52, 199, 89, 0.38);
+  color: #eaffef;
+}
+
+.sidebar-action.revenue:hover {
+  background: rgba(52, 199, 89, 0.28);
+  border-color: rgba(52, 199, 89, 0.62);
+}
+
+.revenue-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  width: 500px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: -6px 0 30px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.22s cubic-bezier(0.34, 1.1, 0.64, 1);
+}
+
+.revenue-header .panel-title {
+  color: #1a1a2e;
+}
+
+.revenue-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px 22px;
+  color: #1a1a2e;
+}
+
+.revenue-alert {
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid #f5d28c;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #856000;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.revenue-section {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #eef0f5;
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+.revenue-section-title {
+  margin-bottom: 11px;
+  color: #1a1a2e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.revenue-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.revenue-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.revenue-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.revenue-field {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.revenue-field span {
+  color: #6f7480;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.revenue-field input,
+.revenue-field select {
+  width: 100%;
+  height: 38px;
+  border: 1.5px solid #e1e5ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a2e;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 0 10px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.revenue-field input:focus,
+.revenue-field select:focus {
+  border-color: #5856d6;
+  box-shadow: 0 0 0 3px rgba(88, 86, 214, 0.08);
+}
+
+.revenue-field small {
+  position: absolute;
+  right: 8px;
+  bottom: -17px;
+  color: #9aa0ad;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.revenue-link-btn {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 10px;
+  border: 1.5px solid #d0d4f0;
+  border-radius: 8px;
+  background: #f8f9ff;
+  color: #5856d6;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.revenue-result-card {
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid #dbe1ff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%);
+}
+
+.revenue-result-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.revenue-result-head span {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 3px;
+}
+
+.revenue-result-head strong {
+  color: #1a1a2e;
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.revenue-result-head em {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.revenue-result-head em.good {
+  background: #effaf2;
+  color: #228a3a;
+  border: 1px solid #bce7c7;
+}
+
+.revenue-result-head em.mid {
+  background: #fff8e8;
+  color: #b56f00;
+  border: 1px solid #f5d28c;
+}
+
+.revenue-result-head em.low {
+  background: #fff1f1;
+  color: #cf3030;
+  border: 1px solid #f1b8b8;
+}
+
+.revenue-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.revenue-kpi-grid div,
+.scenario-card,
+.source-card {
+  min-width: 0;
+  border: 1px solid #eef0f8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+}
+
+.revenue-kpi-grid span,
+.scenario-card span,
+.source-card span {
+  display: block;
+  color: #8a91a0;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.revenue-kpi-grid b,
+.scenario-card strong,
+.source-card strong {
+  color: #1a1a2e;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.scenario-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scenario-card.base {
+  border-color: #d0d4f0;
+  background: #f0f2ff;
+}
+
+.scenario-card.conservative {
+  background: #f8fafc;
+}
+
+.scenario-card.optimistic {
+  border-color: #bce7c7;
+  background: #f6fff8;
+}
+
+.scenario-card small {
+  display: block;
+  margin-top: 3px;
+  color: #8a91a0;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.revenue-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.source-card p {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.source-card.quality.good {
+  border-color: #bce7c7;
+  background: #f8fff9;
+}
+
+.source-card.quality.mid {
+  border-color: #f5d28c;
+  background: #fffaf0;
+}
+
+.source-card.quality.low {
+  border-color: #f1b8b8;
+  background: #fff5f5;
+}
+
+.revenue-footnote {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f4f5f8;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.55;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .sidebar-actions {
+    grid-template-columns: repeat(2, minmax(96px, 1fr));
+  }
+
+  .revenue-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100vw;
+    height: var(--mobile-panel-height);
+    border-radius: 18px 18px 0 0;
+    animation: slideUp 0.22s cubic-bezier(0.34, 1.1, 0.64, 1);
+    box-shadow: 0 -10px 34px rgba(0, 0, 0, 0.34);
+  }
+
+  .revenue-panel::before {
+    content: "";
+    width: 42px;
+    height: 4px;
+    border-radius: 999px;
+    background: #d7d9e2;
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .revenue-body {
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .revenue-grid.two,
+  .revenue-grid.three,
+  .revenue-kpi-grid,
+  .scenario-row,
+  .revenue-source-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revenue-field input,
+  .revenue-field select {
+    font-size: 16px;
+  }
+}
