@@ -62,13 +62,15 @@ export const subscribeAuthSession = (callback) => {
           error: null,
         })
         signInAnonymously(auth).catch((error) => {
+          console.warn('Anonymous session bootstrap failed:', error)
           callback({
             user: null,
             loading: false,
             isAllowed: false,
             needsGoogle: true,
             wrongAccount: false,
-            error,
+            anonymousUnavailable: true,
+            error: null,
           })
         })
         return

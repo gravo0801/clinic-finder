@@ -31,7 +31,9 @@ export default function AuthGate({ session, busy, error, onSignIn, onSignOut }) 
           </button>
         )}
         <p className="auth-note">
-          기존 익명 사용자 데이터는 Google 계정 연결 시 같은 UID로 유지됩니다.
+          {session.anonymousUnavailable
+            ? '익명 세션 확인이 지연되어도 Google 로그인은 계속 진행할 수 있습니다.'
+            : '기존 익명 사용자 데이터는 Google 계정 연결 시 같은 UID로 유지됩니다.'}
         </p>
       </div>
     </div>
