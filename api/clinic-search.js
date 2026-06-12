@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
 
 const COMPETITOR_WHITELIST = ['내과', '가정의학', '365', '24시간', '패밀리클리닉', '검진', '내시경']
 
@@ -168,8 +169,10 @@ const searchNaverLocal = async (query, originLat, originLng) => {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET')
+  setAuthCorsHeaders(res, 'GET,OPTIONS')
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' })
+  if (!(await requireAllowedUser(req, res))) return
 
   const { query, lat, lng } = req.query
   if (!query || clean(query).length < 2) return res.status(400).json({ error: '검색어를 2글자 이상 입력하세요.' })

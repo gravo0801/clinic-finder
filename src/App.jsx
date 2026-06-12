@@ -15,7 +15,20 @@ import SavedClinicList from './components/SavedClinicList'
 import BuildingList from './components/BuildingList'
 import BuildingWatchPanel from './components/BuildingWatchPanel'
 import RevenueEstimatorPanel from './components/RevenueEstimatorPanel'
-import { subscribeSpots, addSpot, updateSpot, deleteSpot, subscribePinnedClinics, subscribeSavedClinics, subscribeSavedBuildings } from './firebase'
+import AuthGate from './components/AuthGate'
+import ErrorBoundary from './components/ErrorBoundary'
+import {
+  subscribeSpots,
+  addSpot,
+  updateSpot,
+  deleteSpot,
+  subscribePinnedClinics,
+  subscribeSavedClinics,
+  subscribeSavedBuildings,
+  subscribeAuthSession,
+  signInWithAllowedGoogle,
+  signOutCurrentUser,
+} from './firebase'
 
 export default function App() {
   const [spots, setSpots] = useState([])
@@ -32,6 +45,9 @@ export default function App() {
   const [selectedBuilding, setSelectedBuilding] = useState(null)
   const [activeSidebarTab, setActiveSidebarTab] = useState('spots')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [authSession, setAuthSession] = useState({ user: null, loading: true, isAllowed: false })
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState(null)
 
   useEffect(() => {
     const syncAppHeight = () => {
@@ -53,17 +69,63 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => subscribeSpots(setSpots), [])
-  useEffect(() => subscribeSavedClinics(setSavedClinics), [])
-  useEffect(() => subscribeSavedBuildings(setSavedBuildings), [])
+  useEffect(() => subscribeAuthSession(setAuthSession), [])
 
   useEffect(() => {
-    if (!selectedSpot?.id) {
+    if (!authSession.isAllowed) {
+      setSpots([])
+      return undefined
+    }
+    return subscribeSpots(setSpots)
+  }, [authSession.isAllowed])
+
+  useEffect(() => {
+    if (!authSession.isAllowed) {
+      setSavedClinics([])
+      return undefined
+    }
+    return subscribeSavedClinics(setSavedClinics)
+  }, [authSession.isAllowed])
+
+  useEffect(() => {
+    if (!authSession.isAllowed) {
+      setSavedBuildings([])
+      return undefined
+    }
+    return subscribeSavedBuildings(setSavedBuildings)
+  }, [authSession.isAllowed])
+
+  useEffect(() => {
+    if (!authSession.isAllowed || !selectedSpot?.id) {
       setMarkedClinics([])
       return undefined
     }
     return subscribePinnedClinics(selectedSpot.id, setMarkedClinics)
-  }, [selectedSpot?.id])
+  }, [authSession.isAllowed, selectedSpot?.id])
+
+  const handleSecureSignIn = async () => {
+    setAuthBusy(true)
+    setAuthError(null)
+    try {
+      await signInWithAllowedGoogle()
+    } catch (error) {
+      setAuthError(error.message || 'Google 로그인에 실패했습니다.')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const handleSecureSignOut = async () => {
+    setAuthBusy(true)
+    setAuthError(null)
+    try {
+      await signOutCurrentUser()
+    } catch (error) {
+      setAuthError(error.message || '로그아웃에 실패했습니다.')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
 
   const handleMapClick = (lat, lng) => {
     setSidebarCollapsed(true)
@@ -210,11 +272,57 @@ export default function App() {
     setCenterOn({ lat: place.lat, lng: place.lng })
   }
 
+  const handleExportData = () => {
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      user: {
+        uid: authSession.user?.uid || '',
+        email: authSession.user?.email || '',
+      },
+      spots,
+      savedClinics,
+      savedBuildings,
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `clinic-finder-backup-${new Date().toISOString().slice(0, 10)}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleSidebarHeaderClick = () => {
     if (window.matchMedia('(max-width: 768px)').matches) {
       setSidebarCollapsed((collapsed) => !collapsed)
     }
   }
+
+  if (authSession.loading) {
+    return (
+      <div className="auth-gate">
+        <div className="auth-card">
+          <div className="auth-mark">🏥</div>
+          <h1>개원 입지 분석</h1>
+          <p className="auth-lead">보안 세션을 확인하는 중입니다.</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!authSession.isAllowed) {
+    return (
+      <AuthGate
+        session={authSession}
+        busy={authBusy}
+        error={authError || authSession.error?.message}
+        onSignIn={handleSecureSignIn}
+        onSignOut={handleSecureSignOut}
+      />
+    )
+  }
+
+  const boundaryKey = `${panelMode || 'none'}-${selectedSpot?.id || selectedClinic?.id || selectedBuilding?.id || ''}`
 
   return (
     <div className="app">
@@ -269,6 +377,15 @@ export default function App() {
               }}
             >
               복구
+            </button>
+            <button
+              className="sidebar-action subtle"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleExportData()
+              }}
+            >
+              백업
             </button>
           </div>
         </div>
@@ -339,87 +456,111 @@ export default function App() {
       </main>
 
       {(panelMode === 'new' || panelMode === 'edit') && (
-        <SpotPanel
-          mode={panelMode}
-          spot={selectedSpot}
-          coords={newCoords}
-          onSave={handleSaveNew}
-          onUpdate={handleUpdate}
-          onDelete={handleDelete}
-          onClose={handleClose}
-          onNearby={() => selectedSpot && handleNearbyOpen(selectedSpot)}
-          onAI={() => selectedSpot && handleAIOpen(selectedSpot)}
-          onChecklist={() => selectedSpot && handleChecklistOpen(selectedSpot)}
-          onArea={() => selectedSpot && handleAreaOpen(selectedSpot)}
-        />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <SpotPanel
+            mode={panelMode}
+            spot={selectedSpot}
+            coords={newCoords}
+            onSave={handleSaveNew}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+            onClose={handleClose}
+            onNearby={() => selectedSpot && handleNearbyOpen(selectedSpot)}
+            onAI={() => selectedSpot && handleAIOpen(selectedSpot)}
+            onChecklist={() => selectedSpot && handleChecklistOpen(selectedSpot)}
+            onArea={() => selectedSpot && handleAreaOpen(selectedSpot)}
+          />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'nearby' && selectedSpot && (
-        <NearbyPanel
-          spot={selectedSpot}
-          onClose={handleClose}
-          onClinicsLoaded={setNearbyClinics}
-          onMarkedClinicsChange={setMarkedClinics}
-          onCompetitorResearch={(clinic) => handleCompetitorOpen(selectedSpot, clinic)}
-        />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <NearbyPanel
+            spot={selectedSpot}
+            onClose={handleClose}
+            onClinicsLoaded={setNearbyClinics}
+            onMarkedClinicsChange={setMarkedClinics}
+            onCompetitorResearch={(clinic) => handleCompetitorOpen(selectedSpot, clinic)}
+          />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'ai' && selectedSpot && (
-        <AIAnalysisPanel spot={selectedSpot} nearbyClinics={nearbyClinics} onClose={handleClose} />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <AIAnalysisPanel spot={selectedSpot} nearbyClinics={nearbyClinics} onClose={handleClose} />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'checklist' && selectedSpot && (
-        <ChecklistPanel spot={selectedSpot} onClose={handleClose} />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <ChecklistPanel spot={selectedSpot} onClose={handleClose} />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'area' && selectedSpot && (
-        <AreaAnalysisPanel spot={selectedSpot} onClose={handleClose} />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <AreaAnalysisPanel spot={selectedSpot} onClose={handleClose} />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'compare' && (
-        <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <ComparePanel spots={spots} onClose={handleClose} onSelect={handleSpotSelect} />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'revenue' && (
-        <RevenueEstimatorPanel spots={spots} onClose={handleClose} onSelectSpot={handleSpotSelect} />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <RevenueEstimatorPanel spots={spots} onClose={handleClose} onSelectSpot={handleSpotSelect} />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'recovery' && (
-        <MigrationBanner onClose={handleClose} />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <MigrationBanner onClose={handleClose} />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'clinicSearch' && (
-        <ClinicSearchPanel
-          savedClinics={savedClinics}
-          centerOn={centerOn}
-          onClose={handleClose}
-          onOpenClinic={handleSavedClinicOpen}
-          onCenterClinic={(clinic) => clinic.lat && clinic.lng && setCenterOn({ lat: clinic.lat, lng: clinic.lng })}
-        />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <ClinicSearchPanel
+            savedClinics={savedClinics}
+            centerOn={centerOn}
+            onClose={handleClose}
+            onOpenClinic={handleSavedClinicOpen}
+            onCenterClinic={(clinic) => clinic.lat && clinic.lng && setCenterOn({ lat: clinic.lat, lng: clinic.lng })}
+          />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'competitor' && selectedSpot && selectedClinic && (
-        <CompetitorReportPanel
-          spot={selectedSpot}
-          clinic={selectedClinic}
-          onClose={handleClose}
-        />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <CompetitorReportPanel
+            spot={selectedSpot}
+            clinic={selectedClinic}
+            onClose={handleClose}
+          />
+        </ErrorBoundary>
       )}
 
       {panelMode === 'clinicReport' && selectedClinic && (
-        <CompetitorReportPanel
-          clinic={selectedClinic}
-          onClose={handleClose}
-          standalone
-        />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <CompetitorReportPanel
+            clinic={selectedClinic}
+            onClose={handleClose}
+            standalone
+          />
+        </ErrorBoundary>
       )}
 
       {(panelMode === 'buildingNew' || panelMode === 'buildingEdit') && (
-        <BuildingWatchPanel
-          building={selectedBuilding}
-          centerOn={buildingCoords || centerOn}
-          onClose={handleClose}
-        />
+        <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
+          <BuildingWatchPanel
+            building={selectedBuilding}
+            centerOn={buildingCoords || centerOn}
+            onClose={handleClose}
+          />
+        </ErrorBoundary>
       )}
     </div>
   )

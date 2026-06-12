@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { authorizedFetch } from '../utils/authorizedFetch'
 
 export default function SearchBar({ onSelectPlace }) {
   const [query, setQuery] = useState('')
@@ -24,7 +25,7 @@ export default function SearchBar({ onSelectPlace }) {
     setLoading(true)
     try {
       // 네이버 지도 Geocoding API (장소 검색)
-      const res = await fetch(
+      const res = await authorizedFetch(
         `/api/search?query=${encodeURIComponent(q)}`
       )
       const data = await res.json()

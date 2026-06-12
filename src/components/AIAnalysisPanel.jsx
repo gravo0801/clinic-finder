@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { spotSubcollection } from '../firebase'
 import { addDoc, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import { authorizedFetch } from '../utils/authorizedFetch'
 
 function ScoreGauge({ score, grade }) {
   const color = score>=80?'#34C759':score>=60?'#FFCC00':score>=40?'#FF9500':'#FF3B30'
@@ -106,7 +107,7 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/analyze', {
+      const res = await authorizedFetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ spot, nearbyClinics }),

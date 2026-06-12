@@ -53,16 +53,24 @@ export default function MapView({
   const buildingMarkersRef = useRef({})
   const tempMarkerRef = useRef(null)
   const [mapReady, setMapReady] = useState(false)
+  const [mapError, setMapError] = useState(null)
 
   useEffect(() => {
     if (window.naver && window.naver.maps) { initMap(); return }
     document.querySelectorAll('script[src*="maps.js"]').forEach((s) => s.remove())
     const script = document.createElement('script')
-    const clientId = import.meta.env.VITE_NAVER_CLIENT_ID || 'psc3xcgzk6'
+    const clientId = import.meta.env.VITE_NAVER_CLIENT_ID
+    if (!clientId) {
+      setMapError('VITE_NAVER_CLIENT_ID 환경변수가 필요합니다.')
+      return
+    }
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`
     script.async = true
     script.onload = () => initMap()
-    script.onerror = () => console.error('네이버 지도 로드 실패')
+    script.onerror = () => {
+      setMapError('네이버 지도를 불러오지 못했습니다.')
+      console.error('네이버 지도 로드 실패')
+    }
     document.head.appendChild(script)
   }, [])
 
@@ -228,7 +236,7 @@ export default function MapView({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: '#0f0f1a', color: 'rgba(255,255,255,0.4)', fontSize: '14px',
         }}>
-          지도 불러오는 중...
+          {mapError || '지도 불러오는 중...'}
         </div>
       )}
     </div>

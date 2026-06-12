@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { deleteSavedClinic, saveSavedClinic } from '../firebase'
+import { authorizedFetch } from '../utils/authorizedFetch'
 
 const DEFAULT_MARKER = { icon: '🏥', color: '#5856D6' }
 
@@ -40,7 +41,7 @@ export default function ClinicSearchPanel({ savedClinics = [], centerOn, onClose
         params.set('lat', String(centerOn.lat))
         params.set('lng', String(centerOn.lng))
       }
-      const res = await fetch(`/api/clinic-search?${params.toString()}`)
+      const res = await authorizedFetch(`/api/clinic-search?${params.toString()}`)
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || '의원 검색에 실패했습니다.')
       setItems(data.items || [])

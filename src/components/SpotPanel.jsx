@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { calculateLocationScore, normalizeBusinessFields } from '../utils/locationScore'
 import { calculateAvoidanceScore } from '../utils/avoidanceScore'
+import { authorizedFetch } from '../utils/authorizedFetch'
 
 const PRESET_TAGS = [
   '주거지역', '상업지역', '역세권', '학교인근',
@@ -259,7 +260,7 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
       if (coords) {
         setAddress('주소 불러오는 중...')
         setGeocoding(true)
-        fetch(`/api/geocode?lat=${coords.lat}&lng=${coords.lng}`)
+        authorizedFetch(`/api/geocode?lat=${coords.lat}&lng=${coords.lng}`)
           .then((r) => r.json())
           .then((d) => { setAddress(d.address || ''); setGeocoding(false) })
           .catch(() => { setAddress(''); setGeocoding(false) })

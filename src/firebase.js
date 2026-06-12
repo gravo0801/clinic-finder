@@ -1,8 +1,12 @@
 import { initializeApp } from 'firebase/app'
 import {
+  GoogleAuthProvider,
   getAuth,
+  linkWithPopup,
   onAuthStateChanged,
+  signInWithPopup,
   signInAnonymously,
+  signOut,
 } from 'firebase/auth'
 import {
   getFirestore,
@@ -32,9 +36,87 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
+export const ALLOWED_EMAIL = (import.meta.env.VITE_ALLOWED_EMAIL || 'fnaticdoc@gmail.com').toLowerCase()
 
 let authStarted = false
 let currentUserPromise = null
+
+export const isAllowedUser = (user) =>
+  Boolean(user?.email && user.email.toLowerCase() === ALLOWED_EMAIL)
+
+export const subscribeAuthSession = (callback) => {
+  let requestedAnonymous = false
+
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    (user) => {
+      if (!user && !requestedAnonymous) {
+        requestedAnonymous = true
+        authStarted = true
+        callback({
+          user: null,
+          loading: true,
+          isAllowed: false,
+          needsGoogle: true,
+          wrongAccount: false,
+          error: null,
+        })
+        signInAnonymously(auth).catch((error) => {
+          callback({
+            user: null,
+            loading: false,
+            isAllowed: false,
+            needsGoogle: true,
+            wrongAccount: false,
+            error,
+          })
+        })
+        return
+      }
+
+      callback({
+        user,
+        loading: false,
+        isAllowed: isAllowedUser(user),
+        needsGoogle: !user || user.isAnonymous,
+        wrongAccount: Boolean(user && !user.isAnonymous && !isAllowedUser(user)),
+        error: null,
+      })
+    },
+    (error) => {
+      callback({
+        user: null,
+        loading: false,
+        isAllowed: false,
+        needsGoogle: true,
+        wrongAccount: false,
+        error,
+      })
+    },
+  )
+
+  return unsubscribe
+}
+
+export const signInWithAllowedGoogle = async () => {
+  const provider = new GoogleAuthProvider()
+  provider.setCustomParameters({ prompt: 'select_account' })
+  const currentUser = auth.currentUser
+
+  if (currentUser?.isAnonymous) {
+    try {
+      return (await linkWithPopup(currentUser, provider)).user
+    } catch (error) {
+      if (!['auth/credential-already-in-use', 'auth/email-already-in-use', 'auth/provider-already-linked'].includes(error.code)) {
+        throw error
+      }
+    }
+  }
+
+  return (await signInWithPopup(auth, provider)).user
+}
+
+export const signOutCurrentUser = () => signOut(auth)
 
 const ensureAuth = () => {
   if (auth.currentUser) return Promise.resolve(auth.currentUser)

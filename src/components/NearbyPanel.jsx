@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { savePinnedClinic, deletePinnedClinic, subscribePinnedClinics } from '../firebase'
+import { authorizedFetch } from '../utils/authorizedFetch'
 
 const RADIUS_OPTIONS = [500, 1000, 2000, 3000]
 
@@ -60,7 +61,7 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/hira?lat=${spot.lat}&lng=${spot.lng}&radius=${radius}`)
+      const res = await authorizedFetch(`/api/hira?lat=${spot.lat}&lng=${spot.lng}&radius=${radius}`)
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       const result = data.items || []

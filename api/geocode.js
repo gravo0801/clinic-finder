@@ -1,6 +1,11 @@
+import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+
 // 네이버 역지오코딩 API - 좌표 → 주소
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  setAuthCorsHeaders(res, 'GET,OPTIONS')
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' })
+  if (!(await requireAllowedUser(req, res))) return
 
   const { lat, lng } = req.query
   if (!lat || !lng) return res.status(400).json({ error: 'lat, lng 필요' })

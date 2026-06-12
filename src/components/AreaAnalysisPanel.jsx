@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
 import { updateSpot } from '../firebase'
+import { authorizedFetch } from '../utils/authorizedFetch'
+
+const AREA_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+const isFreshAreaSnapshot = (snapshot) => {
+  if (!snapshot?.fetchedAt) return false
+  return Date.now() - new Date(snapshot.fetchedAt).getTime() < AREA_CACHE_TTL_MS
+}
 
 const SOURCE_LABELS = {
   region: '행정구역',
@@ -163,8 +171,13 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
     setError(null)
   }, [spot?.id, spot?.areaSnapshot?.fetchedAt])
 
-  const fetchAnalysis = async () => {
+  const fetchAnalysis = async (force = false) => {
     if (!spot?.lat || !spot?.lng) return
+    if (!force && isFreshAreaSnapshot(spot?.areaSnapshot)) {
+      setData(spot.areaSnapshot)
+      setSaveState('saved')
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -174,7 +187,7 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
         Object.entries(region).forEach(([key, value]) => params.set(key, value))
       }
 
-      const res = await fetch(`/api/area?${params.toString()}`)
+      const res = await authorizedFetch(`/api/area?${params.toString()}`)
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error || '지역 분석 데이터를 불러오지 못했습니다.')
       const snapshot = createAreaSnapshot(json)
@@ -227,7 +240,7 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
                 특정 의원의 실제 매출은 공개되지 않으므로 상권 업종 매출과 주변 경쟁도를 함께 보는 보조 지표로 사용합니다.
               </div>
             </div>
-            <button className="btn-analyze" onClick={fetchAnalysis}>지역 분석 시작</button>
+            <button className="btn-analyze" onClick={() => fetchAnalysis(false)}>지역 분석 시작</button>
           </>
         )}
 
@@ -242,7 +255,7 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
         {error && (
           <div className="ai-error">
             <p>{error}</p>
-            <button onClick={fetchAnalysis} className="retry-btn">다시 시도</button>
+            <button onClick={() => fetchAnalysis(true)} className="retry-btn">다시 시도</button>
           </div>
         )}
 
@@ -403,7 +416,7 @@ export default function AreaAnalysisPanel({ spot, onClose }) {
               </div>
             )}
 
-            <button className="btn-reanalyze" onClick={fetchAnalysis}>다시 불러오기</button>
+            <button className="btn-reanalyze" onClick={() => fetchAnalysis(true)}>다시 불러오기</button>
           </div>
         )}
       </div>

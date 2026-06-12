@@ -1,9 +1,10 @@
+import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  setAuthCorsHeaders(res, 'POST,OPTIONS')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  if (!(await requireAllowedUser(req, res))) return
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return res.status(500).json({ error: 'Anthropic API 키 미설정' })
@@ -58,7 +59,7 @@ ${nearbyClinics.length > 0
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
         max_tokens: 1500,
         messages: [{ role: 'user', content: prompt }],
       }),

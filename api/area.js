@@ -1,3 +1,5 @@
+import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+
 const API_TIMEOUT_MS = 10000
 
 const sourceState = (enabled) => ({
@@ -505,9 +507,11 @@ const getApartmentData = async (regionInfo, sources, warnings) => {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET')
+  setAuthCorsHeaders(res, 'GET,OPTIONS')
   res.setHeader('Cache-Control', 'no-store, max-age=0')
+  if (req.method === 'OPTIONS') return res.status(200).end()
+  if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' })
+  if (!(await requireAllowedUser(req, res))) return
 
   const lat = Number(req.query.lat)
   const lng = Number(req.query.lng)

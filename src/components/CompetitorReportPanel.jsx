@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { saveCompetitorReport, saveSavedClinic, subscribeCompetitorReport, subscribeSavedClinic } from '../firebase'
+import { authorizedFetch } from '../utils/authorizedFetch'
 
 const MANUAL_DEFAULTS = {
   reviewCount: '',
@@ -386,7 +387,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/competitor', {
+      const res = await authorizedFetch('/api/competitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

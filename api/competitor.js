@@ -1,3 +1,5 @@
+import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+
 const HIRA_BASE = 'https://apis.data.go.kr/B551182'
 
 const emptySource = (status = 'pending', message = '') => ({ status, message })
@@ -828,7 +830,7 @@ ${JSON.stringify({ spot, clinic, manualReview, officialData, webSignals, sources
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
         max_tokens: 1700,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -859,11 +861,10 @@ ${JSON.stringify({ spot, clinic, manualReview, officialData, webSignals, sources
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  setAuthCorsHeaders(res, 'POST,OPTIONS')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  if (!(await requireAllowedUser(req, res))) return
 
   const { spot, clinic, manualReview = {} } = req.body || {}
   if (!spot || !clinic) return res.status(400).json({ error: 'spot, clinic 필요' })
