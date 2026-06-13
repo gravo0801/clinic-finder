@@ -27,9 +27,14 @@ import {
   getDocs,
 } from 'firebase/firestore'
 
+const defaultAuthDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN
+const appAuthDomain = import.meta.env.VITE_FIREBASE_APP_AUTH_DOMAIN || 'clinic-finder-theta.vercel.app'
+const browserHost = typeof window === 'undefined' ? '' : window.location.hostname
+const shouldUseHostedAuthDomain = browserHost === appAuthDomain
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain: shouldUseHostedAuthDomain ? appAuthDomain : defaultAuthDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
