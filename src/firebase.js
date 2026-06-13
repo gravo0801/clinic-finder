@@ -3,8 +3,10 @@ import {
   GoogleAuthProvider,
   getAuth,
   linkWithPopup,
+  linkWithRedirect,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signInAnonymously,
   signOut,
 } from 'firebase/auth'
@@ -40,6 +42,17 @@ export const ALLOWED_EMAIL = (import.meta.env.VITE_ALLOWED_EMAIL || 'fnaticdoc@g
 
 let authStarted = false
 let currentUserPromise = null
+
+const popupFallbackCodes = new Set([
+  'auth/popup-blocked',
+  'auth/cancelled-popup-request',
+])
+
+const linkFallbackCodes = new Set([
+  'auth/credential-already-in-use',
+  'auth/email-already-in-use',
+  'auth/provider-already-linked',
+])
 
 export const isAllowedUser = (user) =>
   Boolean(user?.email && user.email.toLowerCase() === ALLOWED_EMAIL)
@@ -109,13 +122,29 @@ export const signInWithAllowedGoogle = async () => {
     try {
       return (await linkWithPopup(currentUser, provider)).user
     } catch (error) {
-      if (!['auth/credential-already-in-use', 'auth/email-already-in-use', 'auth/provider-already-linked'].includes(error.code)) {
+      if (popupFallbackCodes.has(error.code)) {
+        sessionStorage.setItem('clinicFinderAuthRedirect', 'link')
+        await linkWithRedirect(currentUser, provider)
+        return null
+      }
+
+      if (!linkFallbackCodes.has(error.code)) {
         throw error
       }
     }
   }
 
-  return (await signInWithPopup(auth, provider)).user
+  try {
+    return (await signInWithPopup(auth, provider)).user
+  } catch (error) {
+    if (popupFallbackCodes.has(error.code)) {
+      sessionStorage.setItem('clinicFinderAuthRedirect', 'signin')
+      await signInWithRedirect(auth, provider)
+      return null
+    }
+
+    throw error
+  }
 }
 
 export const signOutCurrentUser = () => signOut(auth)
