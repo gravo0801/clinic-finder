@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/__/auth/:path*",
-      "destination": "/api/firebase-auth/:path*"
+      "destination": "/api/firebase-auth?firebaseAuthPath=:path*"
     }
   ]
 }

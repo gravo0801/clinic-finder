@@ -29,6 +29,11 @@ const readBody = async (req) => {
 
 const authDomain = () => process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN
 
+const pathFromQuery = (value) => {
+  const path = Array.isArray(value) ? value.join('/') : value
+  return String(path || '').split('/').filter(Boolean).map((segment) => encodeURIComponent(segment)).join('/')
+}
+
 export default async function handler(req, res) {
   const firebaseAuthDomain = authDomain()
   if (!firebaseAuthDomain) {
@@ -36,14 +41,11 @@ export default async function handler(req, res) {
     return
   }
 
-  const rawPath = req.query.path
-  const pathSegments = (Array.isArray(rawPath) ? rawPath : [rawPath])
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
+  const upstreamPath = pathFromQuery(req.query.firebaseAuthPath)
+  const upstreamUrl = new URL(`https://${firebaseAuthDomain}/__/auth/${upstreamPath}`)
 
-  const upstreamUrl = new URL(`https://${firebaseAuthDomain}/__/auth/${pathSegments.join('/')}`)
   Object.entries(req.query).forEach(([key, value]) => {
-    if (key === 'path') return
+    if (key === 'firebaseAuthPath') return
     const values = Array.isArray(value) ? value : [value]
     values.filter((item) => item != null).forEach((item) => upstreamUrl.searchParams.append(key, item))
   })
