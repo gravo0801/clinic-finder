@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app'
 import {
   GoogleAuthProvider,
   getAuth,
+  getRedirectResult,
   linkWithPopup,
   linkWithRedirect,
   onAuthStateChanged,
@@ -42,6 +43,7 @@ export const ALLOWED_EMAIL = (import.meta.env.VITE_ALLOWED_EMAIL || 'fnaticdoc@g
 
 let authStarted = false
 let currentUserPromise = null
+let redirectResultPromise = null
 
 const popupFallbackCodes = new Set([
   'auth/popup-blocked',
@@ -57,8 +59,51 @@ const linkFallbackCodes = new Set([
 export const isAllowedUser = (user) =>
   Boolean(user?.email && user.email.toLowerCase() === ALLOWED_EMAIL)
 
+export const consumeAuthRedirectResult = async () => {
+  if (!redirectResultPromise) {
+    redirectResultPromise = getRedirectResult(auth)
+      .then((result) => {
+        sessionStorage.removeItem('clinicFinderAuthRedirect')
+        return result?.user || null
+      })
+      .catch((error) => {
+        sessionStorage.removeItem('clinicFinderAuthRedirect')
+        throw error
+      })
+  }
+
+  return redirectResultPromise
+}
+
 export const subscribeAuthSession = (callback) => {
   let requestedAnonymous = false
+  let redirectSettled = false
+
+  consumeAuthRedirectResult()
+    .then((user) => {
+      redirectSettled = true
+      if (user) {
+        callback({
+          user,
+          loading: false,
+          isAllowed: isAllowedUser(user),
+          needsGoogle: user.isAnonymous,
+          wrongAccount: Boolean(!user.isAnonymous && !isAllowedUser(user)),
+          error: null,
+        })
+      }
+    })
+    .catch((error) => {
+      redirectSettled = true
+      callback({
+        user: auth.currentUser,
+        loading: false,
+        isAllowed: isAllowedUser(auth.currentUser),
+        needsGoogle: !auth.currentUser || auth.currentUser.isAnonymous,
+        wrongAccount: Boolean(auth.currentUser && !auth.currentUser.isAnonymous && !isAllowedUser(auth.currentUser)),
+        error,
+      })
+    })
 
   const unsubscribe = onAuthStateChanged(
     auth,
@@ -68,7 +113,7 @@ export const subscribeAuthSession = (callback) => {
         authStarted = true
         callback({
           user: null,
-          loading: true,
+          loading: !redirectSettled,
           isAllowed: false,
           needsGoogle: true,
           wrongAccount: false,

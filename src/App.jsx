@@ -30,6 +30,26 @@ import {
   signOutCurrentUser,
 } from './firebase'
 
+const formatAuthError = (error) => {
+  if (!error) return null
+
+  const code = error.code || ''
+  if (code === 'auth/popup-blocked') {
+    return '브라우저가 로그인 팝업을 차단했습니다. 새로고침 후 다시 누르면 전체 페이지 로그인으로 전환됩니다.'
+  }
+  if (code === 'auth/unauthorized-domain') {
+    return 'Firebase 허용 도메인에 현재 Vercel 도메인이 빠져 있습니다. Authentication > Settings > Authorized domains를 확인해주세요.'
+  }
+  if (code === 'auth/redirect-cancelled-by-user' || code === 'auth/popup-closed-by-user') {
+    return 'Google 로그인 창이 완료되기 전에 닫혔습니다. 다시 시도해주세요.'
+  }
+  if (code === 'auth/network-request-failed') {
+    return '브라우저 네트워크 또는 보안 확장 프로그램이 Firebase 로그인을 막았습니다. 확장 프로그램을 잠시 끄거나 다른 브라우저에서 시도해주세요.'
+  }
+
+  return `${error.message || 'Google 로그인에 실패했습니다.'}${code ? ` (${code})` : ''}`
+}
+
 export default function App() {
   const [spots, setSpots] = useState([])
   const [selectedSpot, setSelectedSpot] = useState(null)
@@ -109,7 +129,7 @@ export default function App() {
     try {
       await signInWithAllowedGoogle()
     } catch (error) {
-      setAuthError(error.message || 'Google 로그인에 실패했습니다.')
+      setAuthError(formatAuthError(error))
     } finally {
       setAuthBusy(false)
     }
@@ -121,7 +141,7 @@ export default function App() {
     try {
       await signOutCurrentUser()
     } catch (error) {
-      setAuthError(error.message || '로그아웃에 실패했습니다.')
+      setAuthError(formatAuthError(error) || '로그아웃에 실패했습니다.')
     } finally {
       setAuthBusy(false)
     }
@@ -315,7 +335,7 @@ export default function App() {
       <AuthGate
         session={authSession}
         busy={authBusy}
-        error={authError || authSession.error?.message}
+        error={authError || formatAuthError(authSession.error)}
         onSignIn={handleSecureSignIn}
         onSignOut={handleSecureSignOut}
       />
