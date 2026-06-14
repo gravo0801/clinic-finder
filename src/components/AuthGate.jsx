@@ -22,6 +22,11 @@ export default function AuthGate({ session, busy, error, onSignIn, onSignOut }) 
           </div>
         )}
         {error && <div className="auth-warning">{error}</div>}
+        {session.user && (
+          <div className="auth-diagnostics">
+            현재 세션: {session.user.isAnonymous ? '익명' : session.user.email || '이메일 없음'}
+          </div>
+        )}
         <button type="button" className="auth-primary" onClick={onSignIn} disabled={busy}>
           {busy ? '로그인 중...' : session.user?.isAnonymous ? 'Google 계정 연결하기' : 'Google로 로그인'}
         </button>

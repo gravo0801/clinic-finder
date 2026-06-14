@@ -84,28 +84,48 @@ export const subscribeAuthSession = (callback) => {
   let requestedAnonymous = false
   let redirectSettled = false
 
+  const publish = (user, overrides = {}) => {
+    callback({
+      user,
+      loading: false,
+      isAllowed: isAllowedUser(user),
+      needsGoogle: !user || user.isAnonymous,
+      wrongAccount: Boolean(user && !user.isAnonymous && !isAllowedUser(user)),
+      error: null,
+      ...overrides,
+    })
+  }
+
+  const startAnonymousSession = () => {
+    if (requestedAnonymous || auth.currentUser) return
+
+    requestedAnonymous = true
+    authStarted = true
+    publish(null, { loading: true })
+    signInAnonymously(auth).catch((error) => {
+      console.warn('Anonymous session bootstrap failed:', error)
+      publish(null, {
+        loading: false,
+        anonymousUnavailable: true,
+      })
+    })
+  }
+
   consumeAuthRedirectResult()
     .then((user) => {
       redirectSettled = true
       if (user) {
-        callback({
-          user,
-          loading: false,
-          isAllowed: isAllowedUser(user),
-          needsGoogle: user.isAnonymous,
-          wrongAccount: Boolean(!user.isAnonymous && !isAllowedUser(user)),
-          error: null,
-        })
+        publish(user)
+        return
+      }
+
+      if (!auth.currentUser) {
+        startAnonymousSession()
       }
     })
     .catch((error) => {
       redirectSettled = true
-      callback({
-        user: auth.currentUser,
-        loading: false,
-        isAllowed: isAllowedUser(auth.currentUser),
-        needsGoogle: !auth.currentUser || auth.currentUser.isAnonymous,
-        wrongAccount: Boolean(auth.currentUser && !auth.currentUser.isAnonymous && !isAllowedUser(auth.currentUser)),
+      publish(auth.currentUser, {
         error,
       })
     })
@@ -113,48 +133,20 @@ export const subscribeAuthSession = (callback) => {
   const unsubscribe = onAuthStateChanged(
     auth,
     (user) => {
-      if (!user && !requestedAnonymous) {
-        requestedAnonymous = true
-        authStarted = true
-        callback({
-          user: null,
-          loading: !redirectSettled,
-          isAllowed: false,
-          needsGoogle: true,
-          wrongAccount: false,
-          error: null,
-        })
-        signInAnonymously(auth).catch((error) => {
-          console.warn('Anonymous session bootstrap failed:', error)
-          callback({
-            user: null,
-            loading: false,
-            isAllowed: false,
-            needsGoogle: true,
-            wrongAccount: false,
-            anonymousUnavailable: true,
-            error: null,
-          })
-        })
+      if (!user) {
+        if (!redirectSettled) {
+          publish(null, { loading: true })
+          return
+        }
+
+        startAnonymousSession()
         return
       }
 
-      callback({
-        user,
-        loading: false,
-        isAllowed: isAllowedUser(user),
-        needsGoogle: !user || user.isAnonymous,
-        wrongAccount: Boolean(user && !user.isAnonymous && !isAllowedUser(user)),
-        error: null,
-      })
+      publish(user)
     },
     (error) => {
-      callback({
-        user: null,
-        loading: false,
-        isAllowed: false,
-        needsGoogle: true,
-        wrongAccount: false,
+      publish(null, {
         error,
       })
     },
