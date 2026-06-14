@@ -28,6 +28,7 @@ import {
   subscribeAuthSession,
   signInWithAllowedGoogle,
   signOutCurrentUser,
+  getExportBundle,
 } from './firebase'
 
 const formatAuthError = (error) => {
@@ -48,6 +49,156 @@ const formatAuthError = (error) => {
   }
 
   return `${error.message || 'Google 로그인에 실패했습니다.'}${code ? ` (${code})` : ''}`
+}
+
+const timestampText = (value) => {
+  if (!value) return ''
+  if (value.seconds) return new Date(value.seconds * 1000).toISOString()
+  if (typeof value.toDate === 'function') return value.toDate().toISOString()
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString()
+}
+
+const textValue = (value) => {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return JSON.stringify(value)
+}
+
+const csvValue = (value) => {
+  const text = textValue(value)
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+const buildCsv = (bundle) => {
+  const headers = [
+    'recordType',
+    'parentSpot',
+    'name',
+    'address',
+    'dept',
+    'distance',
+    'radius',
+    'savedAt',
+    'updatedAt',
+    'lastCheckedAt',
+    'generatedAt',
+    'score',
+    'confidence',
+    'revenuePotential',
+    'count',
+    'memo',
+    'source',
+  ]
+  const rows = []
+  const pushRow = (row) => rows.push(headers.map((header) => csvValue(row[header] ?? '')))
+
+  ;(bundle.spots || []).forEach((spot) => {
+    pushRow({
+      recordType: '지역 후보지',
+      name: spot.name,
+      address: spot.address,
+      savedAt: timestampText(spot.createdAt),
+      updatedAt: timestampText(spot.updatedAt),
+      score: spot.rating,
+      memo: spot.memo,
+      source: 'spots',
+    })
+
+    ;(spot.investigations || []).forEach((investigation) => {
+      pushRow({
+        recordType: '지역 조사 기록',
+        parentSpot: spot.name,
+        name: investigation.summary?.headline || '주변 의원 조사',
+        address: spot.address,
+        radius: investigation.radius,
+        savedAt: timestampText(investigation.createdAt),
+        updatedAt: timestampText(investigation.updatedAt),
+        count: `전체 ${investigation.clinicCount || 0} / 경쟁 ${investigation.competitorCount || 0}`,
+        memo: investigation.summary,
+        source: investigation.source || 'investigations',
+      })
+    })
+
+    ;(spot.pins || []).forEach((clinic) => {
+      pushRow({
+        recordType: '지도 표시 의원',
+        parentSpot: spot.name,
+        name: clinic.name,
+        address: clinic.address,
+        dept: clinic.dept || clinic.type,
+        distance: clinic.distance,
+        savedAt: timestampText(clinic.savedAt),
+        source: 'spot-pins',
+      })
+    })
+
+    ;(spot.competitors || []).forEach((report) => {
+      const clinic = report.clinic || report
+      const ai = report.aiResult || {}
+      pushRow({
+        recordType: '후보지 경쟁 리포트',
+        parentSpot: spot.name,
+        name: clinic.name,
+        address: clinic.address,
+        dept: clinic.dept || clinic.type,
+        distance: clinic.distance,
+        savedAt: timestampText(report.savedAt),
+        updatedAt: timestampText(report.updatedAt),
+        generatedAt: timestampText(report.generatedAt),
+        score: ai.competitorStrength,
+        confidence: ai.confidence,
+        revenuePotential: ai.revenuePotential,
+        memo: ai.summary,
+        source: 'spot-competitors',
+      })
+    })
+  })
+
+  ;(bundle.savedClinics || []).forEach((clinic) => {
+    const ai = clinic.aiResult || {}
+    pushRow({
+      recordType: '즐겨찾기 의원',
+      parentSpot: clinic.sourceContext?.spotName || clinic.trackedFrom?.spotName || '',
+      name: clinic.name,
+      address: clinic.address,
+      dept: clinic.dept || clinic.type,
+      distance: clinic.distance,
+      radius: clinic.sourceContext?.radius || clinic.trackedFrom?.radius || '',
+      savedAt: timestampText(clinic.savedAt),
+      updatedAt: timestampText(clinic.updatedAt),
+      lastCheckedAt: timestampText(clinic.lastCheckedAt),
+      generatedAt: timestampText(clinic.generatedAt),
+      score: ai.competitorStrength,
+      confidence: ai.confidence,
+      revenuePotential: ai.revenuePotential,
+      memo: ai.summary || clinic.trackingNote || '',
+      source: clinic.trackedFrom?.source || 'saved-clinics',
+    })
+  })
+
+  ;(bundle.savedBuildings || []).forEach((building) => {
+    pushRow({
+      recordType: '관심 건물',
+      name: building.name,
+      address: building.address,
+      savedAt: timestampText(building.savedAt),
+      updatedAt: timestampText(building.updatedAt),
+      memo: building.memo || building.notes || '',
+      source: 'saved-buildings',
+    })
+  })
+
+  return [headers, ...rows].map((row) => row.join(',')).join('\n')
 }
 
 export default function App() {
@@ -292,24 +443,20 @@ export default function App() {
     setCenterOn({ lat: place.lat, lng: place.lng })
   }
 
-  const handleExportData = () => {
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      user: {
-        uid: authSession.user?.uid || '',
-        email: authSession.user?.email || '',
-      },
-      spots,
-      savedClinics,
-      savedBuildings,
-    }
+  const handleExportData = async () => {
+    const exportData = await getExportBundle()
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `clinic-finder-backup-${new Date().toISOString().slice(0, 10)}.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, `clinic-finder-backup-${new Date().toISOString().slice(0, 10)}.json`)
+  }
+
+  const handleExportCsv = async () => {
+    try {
+      const exportData = await getExportBundle()
+      const blob = new Blob([`\uFEFF${buildCsv(exportData)}`], { type: 'text/csv;charset=utf-8' })
+      downloadBlob(blob, `clinic-finder-export-${new Date().toISOString().slice(0, 10)}.csv`)
+    } catch (error) {
+      alert(`CSV 내보내기에 실패했습니다: ${error.message}`)
+    }
   }
 
   const handleSidebarHeaderClick = () => {
@@ -407,6 +554,15 @@ export default function App() {
             >
               백업
             </button>
+            <button
+              className="sidebar-action subtle"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleExportCsv()
+              }}
+            >
+              CSV
+            </button>
           </div>
         </div>
 
@@ -497,6 +653,7 @@ export default function App() {
         <ErrorBoundary resetKey={boundaryKey} onClose={handleClose}>
           <NearbyPanel
             spot={selectedSpot}
+            savedClinics={savedClinics}
             onClose={handleClose}
             onClinicsLoaded={setNearbyClinics}
             onMarkedClinicsChange={setMarkedClinics}

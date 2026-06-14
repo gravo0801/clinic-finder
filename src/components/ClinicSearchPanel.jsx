@@ -59,6 +59,13 @@ export default function ClinicSearchPanel({ savedClinics = [], centerOn, onClose
     try {
       await saveSavedClinic({
         ...clinic,
+        favorite: true,
+        trackingStatus: 'active',
+        trackedFrom: {
+          source: 'direct-search',
+          query: query.trim(),
+          savedAt: new Date().toISOString(),
+        },
         markerStyle: clinic.markerStyle || DEFAULT_MARKER,
         autoCheck: clinic.autoCheck || { enabled: true, intervalDays: 30 },
         lastCheckedAt: clinic.lastCheckedAt || null,
@@ -87,8 +94,8 @@ export default function ClinicSearchPanel({ savedClinics = [], centerOn, onClose
     <div className="clinic-search-panel">
       <div className="panel-header">
         <div>
-          <h2 className="panel-title">의원 검색/저장</h2>
-          <p className="panel-coords">원하는 의원을 찾아 지도에 고정합니다</p>
+          <h2 className="panel-title">의원 검색/즐겨찾기</h2>
+          <p className="panel-coords">원하는 의원을 찾아 추적 목록과 지도에 저장합니다</p>
         </div>
         <button className="close-btn" onClick={onClose}>✕</button>
       </div>
@@ -127,7 +134,7 @@ export default function ClinicSearchPanel({ savedClinics = [], centerOn, onClose
                 </div>
                 <div className="clinic-search-actions">
                   <button onClick={() => handleSave(clinic)} disabled={savingId === clinic.id}>
-                    {saved ? '다시 저장' : '저장'}
+                    {saved ? '추적 갱신' : '즐겨찾기'}
                   </button>
                   <button className="ghost" onClick={() => onOpenClinic(savedClinics.find((item) => item.id === clinic.id) || clinic)}>
                     열람
@@ -139,9 +146,9 @@ export default function ClinicSearchPanel({ savedClinics = [], centerOn, onClose
         </div>
 
         <div className="clinic-search-section">
-          <div className="clinic-search-section-title">저장한 의원 {savedClinics.length}개</div>
+          <div className="clinic-search-section-title">즐겨찾기/추적 의원 {savedClinics.length}개</div>
           {savedClinics.length === 0 && (
-            <div className="clinic-search-empty">저장한 의원이 아직 없습니다.</div>
+            <div className="clinic-search-empty">즐겨찾기한 의원이 아직 없습니다.</div>
           )}
           {savedClinics.map((clinic) => (
             <div className={`saved-clinic-card ${isDue(clinic) ? 'due' : ''}`} key={clinic.id}>

@@ -312,6 +312,8 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   const [manualReview, setManualReview] = useState(MANUAL_DEFAULTS)
   const [autoCheck, setAutoCheck] = useState(AUTOCHECK_DEFAULTS)
   const [loading, setLoading] = useState(false)
+  const [savingFavorite, setSavingFavorite] = useState(false)
+  const [favoriteSaved, setFavoriteSaved] = useState(false)
   const [error, setError] = useState(null)
   const standalone = !spot?.id
 
@@ -330,6 +332,10 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
       })
     return unsubscribe
   }, [spot?.id, clinic?.id, standalone])
+
+  useEffect(() => {
+    setFavoriteSaved(standalone)
+  }, [clinic?.id, standalone])
 
   const current = savedReport || {}
   const ai = current.aiResult
@@ -417,6 +423,49 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
     }
   }
 
+  const handleFavoriteClinic = async () => {
+    if (!clinic?.id) return
+    setSavingFavorite(true)
+    setError(null)
+    try {
+      await saveSavedClinic({
+        ...clinic,
+        ...current,
+        id: clinic.id,
+        name: clinic.name || current.clinic?.name || '',
+        type: clinic.type || current.clinic?.type || '',
+        dept: clinic.dept || current.clinic?.dept || '',
+        address: clinic.address || current.clinic?.address || '',
+        tel: clinic.tel || current.clinic?.tel || '',
+        lat: clinic.lat ?? current.clinic?.lat ?? null,
+        lng: clinic.lng ?? current.clinic?.lng ?? null,
+        distance: clinic.distance ?? current.clinic?.distance ?? null,
+        favorite: true,
+        trackingStatus: 'active',
+        markerStyle: clinic.markerStyle || current.markerStyle || { icon: '⭐', color: '#FFD700' },
+        autoCheck,
+        lastCheckedAt: current.lastCheckedAt || null,
+        trackedFrom: {
+          source: 'competitor-report',
+          spotId: spot?.id || '',
+          spotName: spot?.name || '',
+          savedAt: new Date().toISOString(),
+        },
+        sourceContext: {
+          spotId: spot?.id || '',
+          spotName: spot?.name || '',
+          spotAddress: spot?.address || '',
+          distance: clinic.distance ?? null,
+        },
+      })
+      setFavoriteSaved(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSavingFavorite(false)
+    }
+  }
+
   return (
     <div className="competitor-panel">
       <div className="panel-header">
@@ -434,7 +483,14 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
             <p>{clinic?.type || '의료기관'} · {clinic?.dept || '진료과목 미확인'}</p>
             <p>{clinic?.address || '주소 미확인'}</p>
           </div>
-          {clinic?.tel && <a href={`tel:${clinic.tel}`}>{clinic.tel}</a>}
+          <div className="competitor-clinic-actions">
+            {clinic?.tel && <a href={`tel:${clinic.tel}`}>{clinic.tel}</a>}
+            {!standalone && (
+              <button onClick={handleFavoriteClinic} disabled={savingFavorite || favoriteSaved}>
+                {favoriteSaved ? '추적 저장됨' : savingFavorite ? '저장 중' : '즐겨찾기 추적'}
+              </button>
+            )}
+          </div>
         </div>
 
         {ai && (

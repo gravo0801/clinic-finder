@@ -141,6 +141,7 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 .saved-sidebar-card strong { display: block; color: #fff; font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .saved-sidebar-card span { display: block; color: rgba(123,121,232,0.96); font-size: 10px; font-weight: 800; margin-top: 4px; }
 .saved-sidebar-card p { color: var(--muted); font-size: 11px; line-height: 1.4; margin-top: 4px; }
+.saved-sidebar-card small { display: block; color: rgba(255,255,255,0.42); font-size: 10px; font-weight: 800; margin-top: 5px; }
 .saved-sidebar-card em {
   align-self: start; border-radius: 999px; background: rgba(255,204,0,0.16); color: #FFD666;
   padding: 3px 7px; font-size: 9px; font-weight: 900; font-style: normal; white-space: nowrap;
@@ -359,6 +360,7 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 .comp-divider { width: 1px; height: 32px; background: #e5e7eb; }
 .competitor-guide { padding: 8px 16px; font-size: 11px; color: #FF6B35; background: #fff5f0; border-bottom: 1px solid #ffe0d0; }
 .saved-pins-notice { padding: 8px 16px; background: #f0f0ff; border-bottom: 1px solid #d8d8f0; font-size: 11px; color: #5856D6; font-weight: 600; }
+.investigation-history { padding: 8px 16px; background: #eef9f1; border-bottom: 1px solid #d7eddc; color: #2b7a40; font-size: 11px; font-weight: 800; }
 .radius-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid #f0f2f5; }
 .radius-label { font-size: 11px; font-weight: 700; color: #888; white-space: nowrap; }
 .radius-btns { display: flex; gap: 5px; }
@@ -367,6 +369,14 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 .show-toggle { display: flex; padding: 8px 16px; gap: 6px; border-bottom: 1px solid #f0f2f5; }
 .toggle-btn { flex: 1; padding: 6px; border-radius: 8px; border: 1.5px solid #e5e7eb; background: white; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.14s; color: #555; }
 .toggle-btn.active { background: #1a1a2e; border-color: #1a1a2e; color: white; }
+.investigation-save-row { display: grid; grid-template-columns: auto 1fr; gap: 9px; align-items: center; padding: 9px 16px; border-bottom: 1px solid #f0f2f5; background: #fafbfc; }
+.investigation-save-row button {
+  min-height: 31px; border: 1.5px solid #bce7c7; border-radius: 8px;
+  background: #effaf2; color: #22833d; padding: 0 10px;
+  font-family: inherit; font-size: 11px; font-weight: 900; cursor: pointer;
+}
+.investigation-save-row button:disabled { opacity: 0.65; cursor: not-allowed; }
+.investigation-save-row span { color: #667085; font-size: 10px; line-height: 1.4; }
 .nearby-list { flex: 1; overflow-y: auto; padding: 12px; }
 .nearby-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; gap: 12px; color: #999; font-size: 13px; }
 .loading-spinner { width: 28px; height: 28px; border: 3px solid #e5e7eb; border-top-color: #5856D6; border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -387,13 +397,16 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
 .clinic-dept { font-size: 11px; color: #5856D6; font-weight: 500; }
 .clinic-address { font-size: 11px; color: #999; margin-top: 2px; }
 .clinic-tel { font-size: 11px; color: #666; margin-top: 2px; }
-.clinic-actions { display: flex; justify-content: flex-end; margin-top: 9px; }
-.clinic-research-btn {
+.clinic-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+.clinic-research-btn, .clinic-favorite-btn {
   min-height: 30px; border: 1.5px solid #d0d4f0; border-radius: 8px;
   background: #f8f9ff; color: #5856D6; padding: 0 11px;
   font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;
 }
 .clinic-research-btn:hover { background: #5856D6; border-color: #5856D6; color: #fff; }
+.clinic-favorite-btn { border-color: #f5d28c; background: #fff8e8; color: #b56f00; }
+.clinic-favorite-btn:hover { background: #FFD666; border-color: #f3c559; color: #1a1a2e; }
+.clinic-favorite-btn.active, .clinic-favorite-btn:disabled { background: #eef9f1; border-color: #bce7c7; color: #238246; cursor: default; opacity: 1; }
 
 /* 마킹 버튼 */
 .mark-btn { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid #e5e7eb; background: white; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
@@ -419,6 +432,13 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
   flex-shrink: 0; border-radius: 999px; background: #fff; border: 1px solid #d0d4f0;
   color: #5856D6; padding: 5px 9px; font-size: 10px; font-weight: 900; text-decoration: none;
 }
+.competitor-clinic-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.competitor-clinic-actions button {
+  border-radius: 999px; background: #fff8e8; border: 1px solid #f5d28c;
+  color: #9a6500; padding: 6px 10px; font-size: 10px; font-weight: 900;
+  font-family: inherit; cursor: pointer; white-space: nowrap;
+}
+.competitor-clinic-actions button:disabled { background: #eef9f1; border-color: #bce7c7; color: #238246; cursor: default; }
 .competitor-score-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
 .competitor-metric {
   min-width: 0; border: 1px solid #e7eaf3; border-radius: 10px; padding: 11px 12px;
@@ -959,12 +979,14 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
   .radius-row { align-items: flex-start; flex-direction: column; gap: 7px; }
   .radius-btns, .show-toggle, .template-selector, .checklist-tabs, .compare-sort { overflow-x: auto; scrollbar-width: none; }
   .radius-btn, .toggle-btn, .template-btn, .checklist-tab, .compare-sort-btn { min-height: 34px; white-space: nowrap; }
+  .investigation-save-row { grid-template-columns: 1fr; gap: 6px; }
+  .investigation-save-row button { min-height: 38px; }
 
   .clinic-card-top { align-items: flex-start; gap: 8px; }
   .clinic-name-row { align-items: flex-start; flex-wrap: wrap; min-width: 0; }
   .clinic-name { line-height: 1.35; }
-  .clinic-actions { justify-content: stretch; }
-  .clinic-research-btn { width: 100%; min-height: 36px; }
+  .clinic-actions { justify-content: stretch; flex-wrap: wrap; }
+  .clinic-research-btn, .clinic-favorite-btn { flex: 1 1 126px; min-height: 36px; }
   .style-picker { right: -4px; top: 36px; }
 
   .ai-grid { grid-template-columns: 1fr; }
@@ -973,6 +995,9 @@ body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(-
   .stat-grid, .sale-grid { grid-template-columns: 1fr; }
   .competitor-score-grid, .competitor-form-grid, .competitor-fact-grid, .competitor-search-grid, .concept-card, .signal-grid, .building-form-grid { grid-template-columns: 1fr; }
   .competitor-actions { grid-template-columns: 1fr; }
+  .competitor-clinic-card { flex-direction: column; }
+  .competitor-clinic-actions { width: 100%; align-items: stretch; flex-direction: row; flex-wrap: wrap; }
+  .competitor-clinic-actions a, .competitor-clinic-actions button { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; }
   .competitor-breakdown { grid-template-columns: repeat(2, 1fr); }
   .trend-row { grid-template-columns: 36px 1fr 42px; }
   .trend-row em { grid-column: 2 / -1; }

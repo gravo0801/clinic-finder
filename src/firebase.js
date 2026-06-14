@@ -304,6 +304,52 @@ export const subscribePinnedClinics = (spotId, callback) => {
   }
 }
 
+export const saveSpotInvestigation = async (spotId, investigation) => {
+  const id = investigation.id || crypto.randomUUID()
+  const investigationRef = await userDoc('spots', spotId, 'investigations', id)
+  const existing = await getDoc(investigationRef)
+  const createdAt = existing.exists() && existing.data().createdAt
+    ? existing.data().createdAt
+    : serverTimestamp()
+
+  await setDoc(investigationRef, {
+    ...investigation,
+    id,
+    spotId,
+    createdAt,
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+
+  return id
+}
+
+export const deleteSpotInvestigation = async (spotId, investigationId) => {
+  await deleteDoc(await userDoc('spots', spotId, 'investigations', investigationId))
+}
+
+export const subscribeSpotInvestigations = (spotId, callback) => {
+  let unsubscribeInvestigations = null
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      callback([])
+      return
+    }
+
+    if (unsubscribeInvestigations) unsubscribeInvestigations()
+    const investigationsCol = collection(db, 'users', user.uid, 'spots', spotId, 'investigations')
+    const investigationsQuery = query(investigationsCol, orderBy('createdAt', 'desc'))
+    unsubscribeInvestigations = onSnapshot(investigationsQuery, (snap) => {
+      callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })))
+    })
+  })
+
+  return () => {
+    if (unsubscribeInvestigations) unsubscribeInvestigations()
+    unsubscribeAuth()
+  }
+}
+
 export const saveCompetitorReport = async (spotId, clinicId, report) => {
   const reportRef = await userDoc('spots', spotId, 'competitors', clinicId)
   const existing = await getDoc(reportRef)
@@ -470,4 +516,43 @@ export const migrateLegacySpots = async () => {
   }))
 
   return legacySnap.size
+}
+
+const docsToArray = (snap) => snap.docs.map((item) => ({ id: item.id, ...item.data() }))
+
+export const getExportBundle = async () => {
+  const user = await ensureAuth()
+  const userPath = (...segments) => collection(db, 'users', user.uid, ...segments)
+
+  const [spotsSnap, savedClinicsSnap, savedBuildingsSnap] = await Promise.all([
+    getDocs(userPath('spots')),
+    getDocs(userPath('savedClinics')),
+    getDocs(userPath('savedBuildings')),
+  ])
+
+  const spots = await Promise.all(docsToArray(spotsSnap).map(async (spot) => {
+    const [pinsSnap, competitorsSnap, investigationsSnap] = await Promise.all([
+      getDocs(userPath('spots', spot.id, 'pins')),
+      getDocs(userPath('spots', spot.id, 'competitors')),
+      getDocs(query(userPath('spots', spot.id, 'investigations'), orderBy('createdAt', 'desc'))),
+    ])
+
+    return {
+      ...spot,
+      pins: docsToArray(pinsSnap),
+      competitors: docsToArray(competitorsSnap),
+      investigations: docsToArray(investigationsSnap),
+    }
+  }))
+
+  return {
+    exportedAt: new Date().toISOString(),
+    user: {
+      uid: user.uid,
+      email: user.email || '',
+    },
+    spots,
+    savedClinics: docsToArray(savedClinicsSnap),
+    savedBuildings: docsToArray(savedBuildingsSnap),
+  }
 }

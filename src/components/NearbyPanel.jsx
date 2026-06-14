@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react'
-import { savePinnedClinic, deletePinnedClinic, subscribePinnedClinics } from '../firebase'
+import {
+  savePinnedClinic,
+  deletePinnedClinic,
+  subscribePinnedClinics,
+  saveSavedClinic,
+  saveSpotInvestigation,
+  subscribeSpotInvestigations,
+} from '../firebase'
 import { authorizedFetch } from '../utils/authorizedFetch'
 
 const RADIUS_OPTIONS = [500, 1000, 2000, 3000]
@@ -16,6 +23,60 @@ const MARKER_STYLES = [
   { icon: '⚠️', color: '#FF9500' },
   { icon: '🏥', color: '#5856D6' },
 ]
+
+const FAVORITE_MARKER = { icon: '⭐', color: '#FFD700' }
+const INVESTIGATION_CLINIC_LIMIT = 100
+
+const formatDateTime = (timestamp) => {
+  if (!timestamp) return ''
+  const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const clinicSnapshot = (item) => ({
+  id: item.id,
+  hiraId: item.hiraId || '',
+  source: item.source || '',
+  name: item.name || '',
+  type: item.type || '',
+  dept: item.dept || '',
+  address: item.address || '',
+  tel: item.tel || '',
+  lat: item.lat ?? null,
+  lng: item.lng ?? null,
+  distance: item.distance ?? null,
+  isCompetitor: !!item.isCompetitor,
+})
+
+const buildInvestigationSummary = (items, competitors, radius) => {
+  const directCompetitors = competitors.filter((item) =>
+    /내과|가정의학|365|검진|건강검진|내시경/.test(`${item.name || ''} ${item.dept || ''}`),
+  )
+  const level =
+    competitors.length >= 5 ? '경쟁 과밀' :
+    competitors.length >= 3 ? '경쟁 보통 이상' :
+    competitors.length >= 1 ? '경쟁 제한적' :
+    '직접 경쟁 희소'
+
+  return {
+    headline: `${radius < 1000 ? `${radius}m` : `${radius / 1000}km`} 반경 ${items.length}개 의료기관, 경쟁 후보 ${competitors.length}개`,
+    level,
+    directCompetitorCount: directCompetitors.length,
+    topCompetitors: directCompetitors.slice(0, 5).map((item) => item.name),
+    notes: [
+      directCompetitors.length > 0
+        ? `내과/검진/365 신호가 있는 직접 경쟁 후보 ${directCompetitors.length}개를 우선 확인하세요.`
+        : '직접 경쟁 후보가 적어 보이지만 검색 누락과 비표준 진료과명은 현장 확인이 필요합니다.',
+      '즐겨찾기한 의원은 경쟁의원 탭과 지도에서 계속 추적할 수 있습니다.',
+    ],
+  }
+}
 
 function DistanceBadge({ distance }) {
   const color =
@@ -34,13 +95,23 @@ function DistanceBadge({ distance }) {
   )
 }
 
-export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedClinicsChange, onCompetitorResearch }) {
+export default function NearbyPanel({
+  spot,
+  savedClinics = [],
+  onClose,
+  onClinicsLoaded,
+  onMarkedClinicsChange,
+  onCompetitorResearch,
+}) {
   const [radius, setRadius] = useState(1000)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showAll, setShowAll] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(null)
+  const [savingFavoriteId, setSavingFavoriteId] = useState(null)
+  const [savingInvestigation, setSavingInvestigation] = useState(false)
+  const [investigations, setInvestigations] = useState([])
   // Firebase에서 불러온 저장된 핀들
   const [savedPins, setSavedPins] = useState([]) // [{id, name, lat, lng, markerStyle, ...}]
 
@@ -52,6 +123,11 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
       if (onMarkedClinicsChange) onMarkedClinicsChange(pins)
     })
     return unsub
+  }, [spot?.id])
+
+  useEffect(() => {
+    if (!spot?.id) return undefined
+    return subscribeSpotInvestigations(spot.id, setInvestigations)
   }, [spot?.id])
 
   useEffect(() => { fetchNearby() }, [spot?.id, radius])
@@ -75,6 +151,8 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
   }
 
   const isPinned = (clinicId) => savedPins.some((p) => p.id === clinicId)
+  const savedClinicIds = new Set(savedClinics.map((clinic) => clinic.id))
+  const isFavorited = (clinicId) => savedClinicIds.has(clinicId)
 
   const handlePin = async (item, styleIdx = 0) => {
     if (isPinned(item.id)) {
@@ -94,6 +172,68 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
       markerStyle: MARKER_STYLES[styleIdx],
     })
     setPickerOpen(null)
+  }
+
+  const handleFavorite = async (item) => {
+    if (!item?.id) return
+    setSavingFavoriteId(item.id)
+    setError(null)
+    try {
+      await saveSavedClinic({
+        ...item,
+        favorite: true,
+        trackingStatus: 'active',
+        markerStyle: item.markerStyle || FAVORITE_MARKER,
+        autoCheck: item.autoCheck || { enabled: true, intervalDays: 30 },
+        lastCheckedAt: item.lastCheckedAt || null,
+        trackedFrom: {
+          source: 'spot-nearby-investigation',
+          spotId: spot.id,
+          spotName: spot.name || '',
+          radius,
+          savedAt: new Date().toISOString(),
+        },
+        sourceContext: {
+          spotId: spot.id,
+          spotName: spot.name || '',
+          spotAddress: spot.address || '',
+          radius,
+          distance: item.distance ?? null,
+        },
+      })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSavingFavoriteId(null)
+    }
+  }
+
+  const handleSaveInvestigation = async () => {
+    if (!spot?.id || items.length === 0) return
+    setSavingInvestigation(true)
+    setError(null)
+    try {
+      await saveSpotInvestigation(spot.id, {
+        spot: {
+          id: spot.id,
+          name: spot.name || '',
+          address: spot.address || '',
+          lat: spot.lat ?? null,
+          lng: spot.lng ?? null,
+        },
+        radius,
+        clinicCount: items.length,
+        competitorCount: competitors.length,
+        summary: buildInvestigationSummary(items, competitors, radius),
+        clinics: items.slice(0, INVESTIGATION_CLINIC_LIMIT).map(clinicSnapshot),
+        competitorIds: competitors.map((item) => item.id),
+        source: 'nearby-panel-hira',
+      })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSavingInvestigation(false)
+    }
   }
 
   const competitors = items.filter((i) => i.isCompetitor)
@@ -150,6 +290,12 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
         🎯 경쟁 기준: 내과 · 가정의학과 · 365의원 &nbsp;|&nbsp; 경쟁 조사 → 공개 데이터 기반 리포트
       </div>
 
+      {investigations.length > 0 && (
+        <div className="investigation-history">
+          최근 조사 {formatDateTime(investigations[0].createdAt) || '저장됨'} · 누적 {investigations.length}회
+        </div>
+      )}
+
       {/* 반경 */}
       <div className="radius-row">
         <span className="radius-label">검색 반경</span>
@@ -172,6 +318,15 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
           <button className={`toggle-btn ${showAll ? 'active' : ''}`} onClick={() => setShowAll(true)}>
             전체 ({items.length})
           </button>
+        </div>
+      )}
+
+      {!loading && items.length > 0 && (
+        <div className="investigation-save-row">
+          <button onClick={handleSaveInvestigation} disabled={savingInvestigation}>
+            {savingInvestigation ? '기록 저장 중...' : '현재 조사 기록 저장'}
+          </button>
+          <span>저장 시 날짜, 반경, 의원 목록, 경쟁 요약이 후보지에 남습니다.</span>
         </div>
       )}
 
@@ -198,6 +353,7 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
 
         {!loading && displayItems.map((item) => {
           const pinned = isPinned(item.id)
+          const favorited = isFavorited(item.id)
           const savedPin = savedPins.find((p) => p.id === item.id)
           const currentStyle = savedPin?.markerStyle || MARKER_STYLES[0]
 
@@ -254,6 +410,13 @@ export default function NearbyPanel({ spot, onClose, onClinicsLoaded, onMarkedCl
               <p className="clinic-address">{item.address}</p>
               {item.tel && <p className="clinic-tel">📞 {item.tel}</p>}
               <div className="clinic-actions">
+                <button
+                  className={`clinic-favorite-btn ${favorited ? 'active' : ''}`}
+                  onClick={() => handleFavorite(item)}
+                  disabled={favorited || savingFavoriteId === item.id}
+                >
+                  {favorited ? '추적중' : savingFavoriteId === item.id ? '저장 중' : '즐겨찾기'}
+                </button>
                 <button
                   className="clinic-research-btn"
                   onClick={() => onCompetitorResearch?.(item)}
