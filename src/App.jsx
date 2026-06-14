@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import MapView from './components/MapView'
 import SpotList from './components/SpotList'
 import SpotPanel from './components/SpotPanel'
@@ -313,6 +313,21 @@ export default function App() {
     setPanelMode('new')
   }
 
+  const handleSearchAddSpot = (place) => {
+    setSidebarCollapsed(true)
+    setNewCoords({
+      lat: place.lat,
+      lng: place.lng,
+      name: place.name || '',
+      address: place.address || '',
+    })
+    setSelectedSpot(null)
+    setSelectedClinic(null)
+    setSelectedBuilding(null)
+    setPanelMode('new')
+    setCenterOn({ lat: place.lat, lng: place.lng })
+  }
+
   const handleSpotSelect = (spot) => {
     setSidebarCollapsed(true)
     setSelectedSpot(spot)
@@ -442,6 +457,18 @@ export default function App() {
   const handleSearchSelect = (place) => {
     setCenterOn({ lat: place.lat, lng: place.lng })
   }
+
+  const handleNearbyClinicsLoaded = useCallback((clinics) => {
+    setNearbyClinics(clinics)
+  }, [])
+
+  const handleMarkedClinicsChange = useCallback((clinics) => {
+    setMarkedClinics(clinics)
+  }, [])
+
+  const handleNearbyCompetitorResearch = useCallback((clinic) => {
+    if (selectedSpot) handleCompetitorOpen(selectedSpot, clinic)
+  }, [selectedSpot])
 
   const handleExportData = async () => {
     const exportData = await getExportBundle()
@@ -609,7 +636,7 @@ export default function App() {
 
       <main className="map-area">
         <div className="map-searchbar">
-          <SearchBar onSelectPlace={handleSearchSelect} />
+          <SearchBar onSelectPlace={handleSearchSelect} onAddSpot={handleSearchAddSpot} />
         </div>
         <MapView
           spots={spots}
@@ -655,9 +682,9 @@ export default function App() {
             spot={selectedSpot}
             savedClinics={savedClinics}
             onClose={handleClose}
-            onClinicsLoaded={setNearbyClinics}
-            onMarkedClinicsChange={setMarkedClinics}
-            onCompetitorResearch={(clinic) => handleCompetitorOpen(selectedSpot, clinic)}
+            onClinicsLoaded={handleNearbyClinicsLoaded}
+            onMarkedClinicsChange={handleMarkedClinicsChange}
+            onCompetitorResearch={handleNearbyCompetitorResearch}
           />
         </ErrorBoundary>
       )}

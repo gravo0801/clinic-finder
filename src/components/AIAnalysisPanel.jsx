@@ -3,6 +3,20 @@ import { spotSubcollection } from '../firebase'
 import { addDoc, onSnapshot, orderBy, query, serverTimestamp } from 'firebase/firestore'
 import { authorizedFetch } from '../utils/authorizedFetch'
 
+const AI_CACHE_TTL_DAYS = Number(import.meta.env.VITE_AI_CACHE_TTL_DAYS || 14)
+
+const parseTime = (value) => {
+  if (!value) return null
+  const date = value.seconds ? new Date(value.seconds * 1000) : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const isFresh = (value) => {
+  const date = parseTime(value)
+  if (!date) return false
+  return Date.now() - date.getTime() < AI_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
+}
+
 function ScoreGauge({ score, grade }) {
   const color = score>=80?'#34C759':score>=60?'#FFCC00':score>=40?'#FF9500':'#FF3B30'
   return (
@@ -77,6 +91,7 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
   const [history, setHistory] = useState([])
   const [showHistory, setShowHistory] = useState(false)
 
@@ -104,8 +119,17 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
   }, [spot?.id])
 
   const handleAnalyze = async () => {
+    const latest = history[0]
+    if (latest?.result && isFresh(latest.createdAt)) {
+      setResult(latest.result)
+      setError(null)
+      setNotice(`최근 ${AI_CACHE_TTL_DAYS}일 이내 분석이 있어 저장 결과를 재사용했습니다.`)
+      return
+    }
+
     setLoading(true)
     setError(null)
+    setNotice(null)
     try {
       const res = await authorizedFetch('/api/analyze', {
         method: 'POST',
@@ -120,8 +144,11 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
         result: data.result,
         createdAt: serverTimestamp(),
         competitorCount: nearbyClinics.filter((c) => c.isCompetitor).length,
+        aiProvider: data.aiProvider || '',
+        aiModel: data.aiModel || '',
       })
       setResult(data.result)
+      setNotice(data.aiProvider ? `${data.aiProvider} 분석 결과를 저장했습니다.` : null)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -205,7 +232,7 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
         {loading && (
           <div className="ai-loading">
             <div className="ai-loading-dots"><span /><span /><span /></div>
-            <p>Claude AI가 입지를 분석 중입니다...</p>
+            <p>AI가 입지를 분석 중입니다...</p>
             <p className="ai-loading-sub">보통 10~20초 소요됩니다</p>
           </div>
         )}
@@ -216,6 +243,8 @@ export default function AIAnalysisPanel({ spot, nearbyClinics = [], onClose }) {
             <button onClick={handleAnalyze} className="retry-btn">다시 시도</button>
           </div>
         )}
+
+        {notice && !error && <div className="ai-cache-note">{notice}</div>}
 
         {result && !loading && <ResultCard result={result} />}
       </div>

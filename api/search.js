@@ -1,4 +1,5 @@
 import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+import { fetchWithTimeout, readJson } from './_http.js'
 
 // 네이버 지역 검색 API (장소명 → 좌표)
 export default async function handler(req, res) {
@@ -23,13 +24,13 @@ export default async function handler(req, res) {
 
   try {
     const url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=10&sort=random`
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       headers: {
         'X-Naver-Client-Id': clientId,
         'X-Naver-Client-Secret': clientSecret,
       }
     })
-    const data = await response.json()
+    const data = await readJson(response)
     return res.status(200).json({ items: data.items || [] })
   } catch (err) {
     return res.status(500).json({ error: err.message })

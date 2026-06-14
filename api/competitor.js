@@ -1,6 +1,9 @@
 import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+import { callAiJson } from './_ai.js'
+import { fetchWithTimeout } from './_http.js'
 
 const HIRA_BASE = 'https://apis.data.go.kr/B551182'
+const HIRA_FALSE_CLAIM_URL = 'https://www.hira.or.kr/bbsDummy.do?brdBltNo=5&brdScnBltNo=4&pgmid=HIRAA020047030000'
 
 const emptySource = (status = 'pending', message = '') => ({ status, message })
 
@@ -74,7 +77,7 @@ const callOpenData = async (serviceKey, path, params = {}) => {
   const query = new URLSearchParams({ ...params }).toString()
   const separator = query ? '&' : ''
   const url = `${HIRA_BASE}/${path}?serviceKey=${serviceKey}${separator}${query}`
-  const response = await fetch(url)
+  const response = await fetchWithTimeout(url)
   const text = await response.text()
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const parsed = normalizeOpenData(text)
@@ -104,7 +107,7 @@ const callNaverSearch = async (type, query, display = 5) => {
 
   const sort = type === 'local' ? 'random' : 'sim'
   const url = `https://openapi.naver.com/v1/search/${type}.json?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: {
       'X-Naver-Client-Id': clientId,
       'X-Naver-Client-Secret': clientSecret,
@@ -273,21 +276,13 @@ const fetchOfficialData = async (clinic) => {
     sources.openClose = emptySource('error', error.message)
   }
 
-  try {
-    const response = await fetch('https://www.hira.or.kr/bbsDummy.do?brdBltNo=5&brdScnBltNo=4&pgmid=HIRAA020047030000')
-    const html = await response.text()
-    const name = clean(clinic.name)
-    const addrToken = clean(clinic.address).split(' ').slice(0, 2).join(' ')
-    const possibleMatch = html.includes(name) || (addrToken && html.includes(name.replace(/의원$/, '')) && html.includes(addrToken))
-    official.falseClaim = {
-      checked: true,
-      possibleMatch,
-      note: possibleMatch ? '거짓청구 명단 페이지에서 이름 또는 주소 단서가 감지되었습니다. 원문 확인이 필요합니다.' : '현재 공표 페이지에서 직접 일치 단서는 감지되지 않았습니다.',
-    }
-    sources.falseClaim = emptySource('ok', '거짓청구 공표 페이지 확인')
-  } catch (error) {
-    sources.falseClaim = emptySource('error', error.message)
+  official.falseClaim = {
+    checked: false,
+    possibleMatch: false,
+    url: HIRA_FALSE_CLAIM_URL,
+    note: '자동 판정하지 않습니다. 오탐 방지를 위해 HIRA 거짓청구 공표 원문에서 직접 확인하세요.',
   }
+  sources.falseClaim = emptySource('blocked', '자동 판정 중단 · HIRA 원문 직접 확인 필요')
 
   return { official, sources }
 }
@@ -788,9 +783,6 @@ const computeFallbackAnalysis = ({ spot, clinic, manualReview, officialData, web
 }
 
 const refineWithAI = async ({ spot, clinic, manualReview, officialData, webSignals, sources, fallback }) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return { ...fallback, aiNote: 'ANTHROPIC_API_KEY 없음: 룰 기반 분석만 사용' }
-
   const prompt = `당신은 내과/가정의학과/검진/내시경 공동개원 관점의 경쟁 의원 조사 애널리스트입니다.
 아래 공개 데이터와 사용자가 직접 입력한 리뷰 요약만 근거로 경쟁 의원의 표면 경쟁력을 평가하세요.
 실제 매출, 의사 실력, 내부 직원 수준은 단정하지 말고 "추정" 또는 "확인 필요"로 표현하세요.
@@ -822,23 +814,7 @@ const refineWithAI = async ({ spot, clinic, manualReview, officialData, webSigna
 ${JSON.stringify({ spot, clinic, manualReview, officialData, webSignals, sources, fallback }, null, 2)}`
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
-        max_tokens: 1700,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const data = await response.json()
-    if (data.error) throw new Error(data.error.message)
-    const text = (data.content?.[0]?.text || '').replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(text)
+    const { json: parsed, provider, model } = await callAiJson({ prompt, maxTokens: 1700 })
     return {
       ...fallback,
       ...parsed,
@@ -853,7 +829,9 @@ ${JSON.stringify({ spot, clinic, manualReview, officialData, webSignals, sources
       nonInsuredSignal: fallback.nonInsuredSignal,
       opportunityAnalysis: Array.isArray(parsed.opportunityAnalysis) ? parsed.opportunityAnalysis : fallback.opportunityAnalysis,
       fieldChecklist: Array.isArray(parsed.fieldChecklist) ? parsed.fieldChecklist : fallback.fieldChecklist,
-      aiNote: 'Claude 분석 적용',
+      aiNote: `${provider} 분석 적용`,
+      aiProvider: provider,
+      aiModel: model,
     }
   } catch (error) {
     return { ...fallback, aiNote: `AI 분석 실패: ${error.message}` }

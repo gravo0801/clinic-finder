@@ -10,10 +10,5 @@ service cloud.firestore {
     match /users/{userId}/{document=**} {
       allow read, write: if isOwner() && request.auth.uid == userId;
     }
-
-    match /spots/{document=**} {
-      allow read: if isOwner();
-      allow write: if false;
-    }
   }
 }

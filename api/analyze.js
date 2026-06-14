@@ -1,13 +1,11 @@
 import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+import { callAiJson } from './_ai.js'
 
 export default async function handler(req, res) {
   setAuthCorsHeaders(res, 'POST,OPTIONS')
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   if (!(await requireAllowedUser(req, res))) return
-
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return res.status(500).json({ error: 'Anthropic API 키 미설정' })
 
   const { spot, nearbyClinics = [] } = req.body
   if (!spot) return res.status(400).json({ error: 'spot 데이터 필요' })
@@ -51,27 +49,8 @@ ${nearbyClinics.length > 0
 }`
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-    const data = await response.json()
-    if (data.error) throw new Error(data.error.message)
-
-    let text = data.content?.[0]?.text || ''
-    // JSON 파싱
-    text = text.replace(/```json|```/g, '').trim()
-    const parsed = JSON.parse(text)
-    return res.status(200).json({ result: parsed })
+    const { json, provider, model } = await callAiJson({ prompt, maxTokens: 1500 })
+    return res.status(200).json({ result: json, aiProvider: provider, aiModel: model })
   } catch (err) {
     console.error('AI 분석 오류:', err)
     return res.status(500).json({ error: err.message })

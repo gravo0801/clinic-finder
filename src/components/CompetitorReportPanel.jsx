@@ -39,6 +39,8 @@ const AUTOCHECK_DEFAULTS = {
   intervalDays: 30,
 }
 
+const AI_CACHE_TTL_DAYS = Number(import.meta.env.VITE_AI_CACHE_TTL_DAYS || 14)
+
 const DISCLAIMER_TEXTS = {
   revenue: 'AI 추정값 · 공개 데이터와 저장된 조사 단서 기반 · 실제 매출 금액 아님',
   review: '사용자 직접 입력 · 리뷰 본문 자동 수집 없음',
@@ -97,6 +99,12 @@ const parseSavedTime = (timestamp) => {
     return Number.isNaN(date.getTime()) ? null : date
   }
   return null
+}
+
+const isFreshReport = (report) => {
+  const base = parseSavedTime(report?.lastCheckedAt || report?.generatedAt || report?.updatedAt || report?.savedAt)
+  if (!base) return false
+  return Date.now() - base.getTime() < AI_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
 }
 
 const getAutoCheckStatus = (report, autoCheck) => {
@@ -301,7 +309,15 @@ function OfficialSummary({ data }) {
       </div>
       <div>
         <span>거짓청구 공표</span>
-        <p>{data?.falseClaim?.note || '자료 없음'}</p>
+        <p>
+          {data?.falseClaim?.note || '자료 없음'}
+          {data?.falseClaim?.url && (
+            <>
+              {' '}
+              <a href={data.falseClaim.url} target="_blank" rel="noreferrer">원문 확인</a>
+            </>
+          )}
+        </p>
       </div>
     </div>
   )
@@ -315,6 +331,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
   const [savingFavorite, setSavingFavorite] = useState(false)
   const [favoriteSaved, setFavoriteSaved] = useState(false)
   const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
   const standalone = !spot?.id
 
   useEffect(() => {
@@ -390,8 +407,15 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
 
   const handleAnalyze = async () => {
     if (!clinic?.id) return
+    if (ai && isFreshReport(current)) {
+      setNotice(`최근 ${AI_CACHE_TTL_DAYS}일 이내 리포트가 있어 저장 결과를 재사용했습니다.`)
+      setError(null)
+      return
+    }
+
     setLoading(true)
     setError(null)
+    setNotice(null)
     try {
       const res = await authorizedFetch('/api/competitor', {
         method: 'POST',
@@ -416,6 +440,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
         autoCheck,
         lastCheckedAt: data.generatedAt,
       })
+      setNotice(data.aiResult?.aiProvider ? `${data.aiResult.aiProvider} 분석 결과를 저장했습니다.` : 'AI 분석 결과를 저장했습니다.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -626,6 +651,7 @@ export default function CompetitorReportPanel({ spot, clinic, onClose }) {
             </button>
           </div>
           {error && <div className="ai-error"><p>{error}</p></div>}
+          {notice && !error && <div className="ai-cache-note">{notice}</div>}
         </div>
 
         {current.sources && (

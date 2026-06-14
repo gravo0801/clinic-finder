@@ -5,6 +5,35 @@ const RATING_COLORS = {
   2: '#34C759', 1: '#007AFF', 0: '#8E8E93',
 }
 
+let naverMapsLoaderPromise = null
+
+function loadNaverMaps(clientId) {
+  if (window.naver?.maps) return Promise.resolve()
+  if (naverMapsLoaderPromise) return naverMapsLoaderPromise
+
+  naverMapsLoaderPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-clinic-finder-naver-map="true"]')
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true })
+      existing.addEventListener('error', () => reject(new Error('네이버 지도를 불러오지 못했습니다.')), { once: true })
+      return
+    }
+
+    const script = document.createElement('script')
+    script.dataset.clinicFinderNaverMap = 'true'
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`
+    script.async = true
+    script.onload = () => resolve()
+    script.onerror = () => {
+      naverMapsLoaderPromise = null
+      reject(new Error('네이버 지도를 불러오지 못했습니다.'))
+    }
+    document.head.appendChild(script)
+  })
+
+  return naverMapsLoaderPromise
+}
+
 function makeSpotMarkerHtml(color, isSelected) {
   const scale = isSelected ? 1.4 : 1
   return `<div style="width:${28*scale}px;height:${28*scale}px;background:${color};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.35);transition:all 0.2s;"></div>`
@@ -56,22 +85,24 @@ export default function MapView({
   const [mapError, setMapError] = useState(null)
 
   useEffect(() => {
-    if (window.naver && window.naver.maps) { initMap(); return }
-    document.querySelectorAll('script[src*="maps.js"]').forEach((s) => s.remove())
-    const script = document.createElement('script')
+    let cancelled = false
     const clientId = import.meta.env.VITE_NAVER_CLIENT_ID
     if (!clientId) {
       setMapError('VITE_NAVER_CLIENT_ID 환경변수가 필요합니다.')
       return
     }
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`
-    script.async = true
-    script.onload = () => initMap()
-    script.onerror = () => {
-      setMapError('네이버 지도를 불러오지 못했습니다.')
-      console.error('네이버 지도 로드 실패')
+
+    loadNaverMaps(clientId)
+      .then(() => {
+        if (!cancelled) initMap()
+      })
+      .catch((error) => {
+        if (!cancelled) setMapError(error.message)
+      })
+
+    return () => {
+      cancelled = true
     }
-    document.head.appendChild(script)
   }, [])
 
   function initMap() {

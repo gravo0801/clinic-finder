@@ -248,6 +248,7 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
   const [business, setBusiness] = useState(BUSINESS_FORM_DEFAULTS)
   const [saving, setSaving] = useState(false)
   const [geocoding, setGeocoding] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (mode === 'edit' && spot) {
@@ -258,15 +259,21 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
       setName(''); setAddress(''); setRating(0); setTags([]); setMemo('')
       setBusiness(BUSINESS_FORM_DEFAULTS)
       if (coords) {
-        setAddress('주소 불러오는 중...')
-        setGeocoding(true)
-        authorizedFetch(`/api/geocode?lat=${coords.lat}&lng=${coords.lng}`)
-          .then((r) => r.json())
-          .then((d) => { setAddress(d.address || ''); setGeocoding(false) })
-          .catch(() => { setAddress(''); setGeocoding(false) })
+        setName(coords.name || '')
+        if (coords.address) {
+          setAddress(coords.address)
+          setGeocoding(false)
+        } else {
+          setAddress('주소 불러오는 중...')
+          setGeocoding(true)
+          authorizedFetch(`/api/geocode?lat=${coords.lat}&lng=${coords.lng}`)
+            .then((r) => r.json())
+            .then((d) => { setAddress(d.address || ''); setGeocoding(false) })
+            .catch(() => { setAddress(''); setGeocoding(false) })
+        }
       }
     }
-  }, [mode, spot?.id, coords?.lat, coords?.lng])
+  }, [mode, spot?.id, coords?.lat, coords?.lng, coords?.name, coords?.address])
 
   const toggleTag = (tag) => setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag])
   const setBusinessField = (field, value) => {
@@ -282,8 +289,11 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
     } finally { setSaving(false) }
   }
 
-  const handleDelete = () => {
-    if (window.confirm(`"${spot?.name || '이 스팟'}"을 삭제할까요?`)) onDelete(spot.id)
+  const handleDelete = () => setDeleteConfirmOpen(true)
+
+  const confirmDelete = async () => {
+    setDeleteConfirmOpen(false)
+    await onDelete(spot.id)
   }
 
   const displayRating = hover || rating
@@ -575,6 +585,18 @@ function EditMode({ mode, spot, coords, onSave, onUpdate, onDelete, onClose }) {
           {!isNew && <button className="btn-delete" onClick={handleDelete}>삭제</button>}
         </div>
       </div>
+      {deleteConfirmOpen && (
+        <div className="confirm-backdrop" role="presentation" onClick={() => setDeleteConfirmOpen(false)}>
+          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-spot-title" onClick={(event) => event.stopPropagation()}>
+            <strong id="delete-spot-title">후보지를 삭제할까요?</strong>
+            <p>"{spot?.name || '이 후보지'}"와 저장된 기본 정보가 삭제됩니다.</p>
+            <div className="confirm-actions">
+              <button className="confirm-cancel" onClick={() => setDeleteConfirmOpen(false)}>취소</button>
+              <button className="confirm-danger" onClick={confirmDelete}>삭제</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

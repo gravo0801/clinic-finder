@@ -1,4 +1,5 @@
 import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+import { fetchWithTimeout, readJson } from './_http.js'
 
 // 경쟁 의원 판단 - 단순 화이트리스트 방식
 // 이름 또는 진료과에 아래 키워드가 있어야만 경쟁으로 분류
@@ -30,8 +31,8 @@ export default async function handler(req, res) {
       `&xPos=${lng}&yPos=${lat}&radius=${radius}` +
       `&numOfRows=100&pageNo=1&_type=json`
 
-    const response = await fetch(url)
-    const data = await response.json()
+    const response = await fetchWithTimeout(url)
+    const data = await readJson(response)
     const items = data?.response?.body?.items?.item
     if (!items) return res.status(200).json({ items: [], total: 0 })
 

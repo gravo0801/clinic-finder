@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { requireAllowedUser, setAuthCorsHeaders } from './_auth.js'
+import { fetchWithTimeout, readJson } from './_http.js'
 
 const COMPETITOR_WHITELIST = ['내과', '가정의학', '365', '24시간', '패밀리클리닉', '검진', '내시경']
 
@@ -91,8 +92,8 @@ const searchHira = async (query, originLat, originLng, serviceKey) => {
     _type: 'json',
   })
   const url = `https://apis.data.go.kr/B551182/hospInfoServicev2/getHospBasisList?${params.toString()}`
-  const response = await fetch(url)
-  const data = await response.json()
+  const response = await fetchWithTimeout(url)
+  const data = await readJson(response)
   const resultCode = data?.response?.header?.resultCode
   const resultMsg = data?.response?.header?.resultMsg
   if (resultCode && resultCode !== '00') throw new Error(resultMsg || `OpenAPI ${resultCode}`)
@@ -130,13 +131,13 @@ const searchNaverLocal = async (query, originLat, originLng) => {
   if (!clientId || !clientSecret) return { items: [], status: 'missing_key', message: 'NAVER_SEARCH 키 미설정' }
 
   const url = `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=10&sort=random`
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: {
       'X-Naver-Client-Id': clientId,
       'X-Naver-Client-Secret': clientSecret,
     },
   })
-  const data = await response.json()
+  const data = await readJson(response)
   if (!response.ok || data.errorCode) throw new Error(data.errorMessage || 'Naver local error')
 
   const items = normalizeItems(data.items)
@@ -184,17 +185,17 @@ export default async function handler(req, res) {
     let hira = { items: [], status: 'pending', message: '' }
     let naver = { items: [], status: 'pending', message: '' }
 
-    try {
-      hira = await searchHira(query, originLat, originLng, process.env.PUBLIC_DATA_API_KEY)
-    } catch (error) {
-      hira = { items: [], status: 'error', message: error.message }
-    }
+    const [hiraResult, naverResult] = await Promise.allSettled([
+      searchHira(query, originLat, originLng, process.env.PUBLIC_DATA_API_KEY),
+      searchNaverLocal(query, originLat, originLng),
+    ])
 
-    try {
-      naver = await searchNaverLocal(query, originLat, originLng)
-    } catch (error) {
-      naver = { items: [], status: 'error', message: error.message }
-    }
+    hira = hiraResult.status === 'fulfilled'
+      ? hiraResult.value
+      : { items: [], status: 'error', message: hiraResult.reason?.message || 'HIRA 검색 실패' }
+    naver = naverResult.status === 'fulfilled'
+      ? naverResult.value
+      : { items: [], status: 'error', message: naverResult.reason?.message || '네이버 지역검색 실패' }
 
     sourceStatus.hira = { status: hira.status, message: hira.message }
     sourceStatus.naverLocal = { status: naver.status, message: naver.message }

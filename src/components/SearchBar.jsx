@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { authorizedFetch } from '../utils/authorizedFetch'
 
-export default function SearchBar({ onSelectPlace }) {
+const normalizePlace = (item) => ({
+  lat: parseFloat(item.mapy) / 1e7,
+  lng: parseFloat(item.mapx) / 1e7,
+  name: item.title.replace(/<[^>]+>/g, ''),
+  address: item.roadAddress || item.address,
+})
+
+export default function SearchBar({ onSelectPlace, onAddSpot }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -46,10 +53,20 @@ export default function SearchBar({ onSelectPlace }) {
   }
 
   const handleSelect = (item) => {
-    setQuery(item.title.replace(/<[^>]+>/g, ''))
+    const place = normalizePlace(item)
+    setQuery(place.name)
     setShowResults(false)
     setResults([])
-    onSelectPlace({ lat: parseFloat(item.mapy) / 1e7, lng: parseFloat(item.mapx) / 1e7, name: item.title.replace(/<[^>]+>/g, ''), address: item.roadAddress || item.address })
+    onSelectPlace(place)
+  }
+
+  const handleAddSpot = (item, event) => {
+    event.stopPropagation()
+    const place = normalizePlace(item)
+    setQuery(place.name)
+    setShowResults(false)
+    setResults([])
+    onAddSpot?.(place)
   }
 
   const handleKeyDown = (e) => {
@@ -84,8 +101,13 @@ export default function SearchBar({ onSelectPlace }) {
             const title = item.title.replace(/<[^>]+>/g, '')
             return (
               <div key={i} className="search-result-item" onClick={() => handleSelect(item)}>
-                <div className="search-result-name">{title}</div>
-                <div className="search-result-addr">{item.roadAddress || item.address}</div>
+                <div className="search-result-main">
+                  <div className="search-result-name">{title}</div>
+                  <div className="search-result-addr">{item.roadAddress || item.address}</div>
+                </div>
+                <button className="search-result-add" onClick={(event) => handleAddSpot(item, event)}>
+                  후보지 추가
+                </button>
               </div>
             )
           })}
